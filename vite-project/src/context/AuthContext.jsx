@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
-    isLoggedIn: !!user, // Add this for your Navbar
+    isLoggedIn: !!user,
     login,
     logout,
     loading
@@ -52,5 +52,4 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// Export AuthContext for direct use if needed
 export { AuthContext };

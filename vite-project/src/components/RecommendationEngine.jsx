@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import ProductCard from './ProductCard';
 import UserPreferences from './UserPreferences';
+import AdvancedFilters from './AdvancedFilters';
 import { useRecommendation } from '../hooks/useRecommendation';
+import { useDebounce } from '../hooks/useDebounce';
 import { products } from '../data/products';
 import { Filter, Grid, List, Search } from 'lucide-react';
 
-const RecommendationSystem = () => {
+const RecommendationEngine = () => {
   const [userPreferences, setUserPreferences] = useState({
     preferredCategories: [],
     interests: [],
@@ -16,15 +18,35 @@ const RecommendationSystem = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('grid');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  
+  const [advancedFilters, setAdvancedFilters] = useState({
+    categories: [],
+    brands: [],
+    tags: [],
+    priceRange: [0, 500],
+    rating: 0
+  });
 
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const recommendations = useRecommendation(userPreferences, userBehavior);
 
-  // Filter products based on search and category
+  // Filter products based on search, category, and advanced filters
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch = product.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                         product.tags.some(tag => tag.toLowerCase().includes(debouncedSearchTerm.toLowerCase()));
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    
+    // Advanced filters
+    const matchesAdvancedCategory = advancedFilters.categories.length === 0 || 
+                                   advancedFilters.categories.includes(product.category);
+    const matchesBrand = advancedFilters.brands.length === 0 || 
+                        advancedFilters.brands.includes(product.brand);
+    const matchesRating = product.rating >= advancedFilters.rating;
+    const matchesPrice = product.price >= advancedFilters.priceRange[0] && 
+                        product.price <= advancedFilters.priceRange[1];
+
+    return matchesSearch && matchesCategory && matchesAdvancedCategory && 
+           matchesBrand && matchesRating && matchesPrice;
   });
 
   const categories = ['all', ...new Set(products.map(p => p.category))];
@@ -47,6 +69,12 @@ const RecommendationSystem = () => {
       action: 'like',
       timestamp: Date.now()
     }]);
+    
+    // Also add product tags to user interests
+    setUserPreferences(prev => ({
+      ...prev,
+      interests: [...new Set([...prev.interests, ...product.tags])]
+    }));
   };
 
   const handleAddToCart = (product) => {
@@ -61,24 +89,29 @@ const RecommendationSystem = () => {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 py-8">
+      <div className="container mx-auto px-4">
         {/* Header */}
         <header className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-gray-800 mb-4">
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">
             Smart Product Recommendations
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Discover products tailored to your unique preferences and behavior
           </p>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-6">
             <UserPreferences 
               preferences={userPreferences}
               setPreferences={setUserPreferences}
+            />
+            <AdvancedFilters 
+              filters={advancedFilters}
+              onFiltersChange={setAdvancedFilters}
+              products={products}
             />
           </div>
 
@@ -162,6 +195,7 @@ const RecommendationSystem = () => {
                       onView={handleProductView}
                       onAddToCart={handleAddToCart}
                       isRecommended={true}
+                      explanation={product.explanation}
                     />
                   ))}
                 </div>
@@ -202,4 +236,4 @@ const RecommendationSystem = () => {
   );
 };
 
-export default RecommendationSystem;
+export default RecommendationEngine;

@@ -1,13 +1,13 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext"; // import the hook
+import { useAuth } from "../context/AuthContext";
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const { isLoggedIn, logout } = useAuth(); // use the hook
+  const { isLoggedIn, logout } = useAuth();
 
   const handleLogout = () => {
-    logout(); // this updates context state
+    logout();
     navigate("/login");
   };
 
@@ -30,7 +30,7 @@ const Navbar = () => {
             <Link to="/" className="hover:text-white">Home</Link>
           </li>
           <li>
-            <Link to="/product" className="hover:text-white">Product</Link>
+            <Link to="/recommendations" className="hover:text-white">Recommendations</Link>
           </li>
           <li className="hover:text-white cursor-pointer">Services</li>
           <li className="hover:text-white cursor-pointer">Contact</li>
