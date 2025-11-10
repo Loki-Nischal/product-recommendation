@@ -1,31 +1,56 @@
-import React, { createContext, useState, useEffect } from "react";
+import React, { createContext, useState, useContext, useEffect } from 'react';
 
-export const AuthContext = createContext();
+const AuthContext = createContext();
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
 export const AuthProvider = ({ children }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // ✅ Check token on first load
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    setIsLoggedIn(!!token);
+    // Check if user is logged in on app start
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    
+    if (token && userData) {
+      setUser(JSON.parse(userData));
+    }
+    setLoading(false);
   }, []);
 
-  // ✅ Called after successful login
-  const login = (token) => {
-    localStorage.setItem("token", token);
-    setIsLoggedIn(true); // triggers Navbar re-render instantly
+  const login = (userData, token) => {
+    setUser(userData);
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
   };
 
-  // ✅ Called when user clicks logout
   const logout = () => {
-    localStorage.removeItem("token");
-    setIsLoggedIn(false); // updates Navbar instantly
+    setUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  };
+
+  const value = {
+    user,
+    isLoggedIn: !!user, // Add this for your Navbar
+    login,
+    logout,
+    loading
   };
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, login, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 };
+
+// Export AuthContext for direct use if needed
+export { AuthContext };

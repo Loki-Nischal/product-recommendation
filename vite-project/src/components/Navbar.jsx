@@ -1,10 +1,10 @@
-import React, { useContext } from "react";
+import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext"; // import context
+import { useAuth } from "../context/AuthContext"; // import the hook
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const { isLoggedIn, logout } = useContext(AuthContext); // use context
+  const { isLoggedIn, logout } = useAuth(); // use the hook
 
   const handleLogout = () => {
     logout(); // this updates context state
@@ -30,7 +30,7 @@ const Navbar = () => {
             <Link to="/" className="hover:text-white">Home</Link>
           </li>
           <li>
-            <Link to="/about" className="hover:text-white">About</Link>
+            <Link to="/product" className="hover:text-white">Product</Link>
           </li>
           <li className="hover:text-white cursor-pointer">Services</li>
           <li className="hover:text-white cursor-pointer">Contact</li>
