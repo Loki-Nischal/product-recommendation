@@ -30,3 +30,9 @@ export const getRecommendations = async (req, res) => {
 
   res.json(recommendations);
 };
+
+// When user views a product, store category
+user.viewedCategories.push(product.category);
+user.viewedCategories = [...new Set(user.viewedCategories)];
+await user.save();
+
