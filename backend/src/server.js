@@ -1,23 +1,24 @@
-import express from 'express';
-import mongoose from 'mongoose';
+import express from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+import userRoutes from "./routes/userRoutes.js";
 
-// create an express application
 const app = express();
 
-//set port number
-const port = 4000 //http:localhost:4000
+app.use(cors());
+app.use(express.json()); // VERY IMPORTANT
 
+const port = 4000;
 
-// connection with database
-mongoose.connect('mongodb://localhost:27017/estore')
-.then(() => {
-  console.log('Connected to MongoDB');
-}).catch((error) => {
-  console.error('Error connecting to MongoDB:', error);
-});
+// Connect to MongoDB
+mongoose
+  .connect("mongodb://localhost:27017/estore")
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((error) => console.error("Error connecting to MongoDB:", error));
 
-//user model 
+// Use routes
+app.use("/api/users", userRoutes);
 
 app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);  // main api bhaneko http:localhost:4000 ho 
+  console.log(`Server running at http://localhost:${port}`);
 });

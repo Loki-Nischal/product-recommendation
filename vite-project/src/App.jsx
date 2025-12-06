@@ -31,7 +31,7 @@ const App = () => {
               }
             />
             <Route
-              path="/product/:id"
+              path="/productdetails/:id"
               element={
                 <PrivateRoute>
                   <ProductDetails />
