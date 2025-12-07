@@ -3,45 +3,16 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ArrowRight, Star, Users, Zap } from 'lucide-react';
 
+import HeroSlider from "../components/HeroSlider";
+
+
 const Home = () => {
   const { user } = useAuth();
 
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="bg-linear-to-r from-blue-600 to-purple-700 text-white py-20">
-        <div className="container mx-auto px-4 text-center">
-          <h1 className="text-5xl font-bold mb-6">
-            Smart Product Recommendations
-          </h1>
-          <p className="text-xl mb-8 max-w-2xl mx-auto">
-            Discover products you'll love with our AI-powered recommendation engine
-          </p>
-          {user ? (
-            <Link
-              to="/recommendations"
-              className="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-colors inline-flex items-center gap-2"
-            >
-              Get Recommendations <ArrowRight size={20} />
-            </Link>
-          ) : (
-            <div className="flex gap-4 justify-center">
-              <Link
-                to="/register"
-                className="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-colors"
-              >
-                Get Started
-              </Link>
-              <Link
-                to="/login"
-                className="border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-blue-600 transition-colors"
-              >
-                Sign In
-              </Link>
-            </div>
-          )}
-        </div>
-      </section>
+      <HeroSlider />
 
       {/* Features Section */}
       <section className="py-16 bg-white">
