@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ArrowRight, Star, Users, Zap } from 'lucide-react';
-
+import FlashSale from "../components/FlashSale";
 import HeroSlider from "../components/HeroSlider";
 
 
@@ -13,6 +13,8 @@ const Home = () => {
     <div className="min-h-screen">
       {/* Hero Section */}
       <HeroSlider />
+
+      <FlashSale />
 
       {/* Features Section */}
       <section className="py-16 bg-white">

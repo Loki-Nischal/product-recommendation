@@ -8,6 +8,9 @@ import ProductDetails from "./pages/ProductDetails";
 import PrivateRoute from "./components/PrivateRoute";
 import RecommendationSystem from "./pages/RecommendationSystem";
 import { AuthProvider } from "./context/AuthContext";
+import AdminLogin from "./pages/AdminLogin";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminRoute from "./components/AdminRoute";
 
 const App = () => {
   return (
@@ -20,6 +23,8 @@ const App = () => {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />  
             
             {/* Protected Routes */}
             <Route
@@ -38,6 +43,17 @@ const App = () => {
                 </PrivateRoute>
               }
             />
+
+            <Route
+              path="/admin/dashboard"
+              element={
+             <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+             }
+           />
+
+            
             
             {/* Fallback route */}
             <Route path="*" element={<Navigate to="/" replace />} />
