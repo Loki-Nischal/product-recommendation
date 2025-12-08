@@ -8,9 +8,12 @@ import ProductDetails from "./pages/ProductDetails";
 import PrivateRoute from "./components/PrivateRoute";
 import RecommendationSystem from "./pages/RecommendationSystem";
 import { AuthProvider } from "./context/AuthContext";
-import AdminLogin from "./pages/AdminLogin";
-import AdminDashboard from "./pages/AdminDashboard";
-import AdminRoute from "./components/AdminRoute";
+import AdminLogin from "./pages/Admin/AdminLogin";
+import Dashboard from "./pages/Admin/Dashboard";
+import Products from "./pages/Admin/Products";
+import AddProduct from "./pages/Admin/AddProduct";
+import AdminRoute from "../routes/AdminRoutes";
+
 
 const App = () => {
   return (
@@ -44,11 +47,25 @@ const App = () => {
               }
             />
 
+            <Route 
+              path="/admin/products"
+              element={
+              <AdminRoute><Products /></AdminRoute>
+             }
+            />
+
+            <Route 
+              path="/admin/add-product"
+              element={
+              <AdminRoute><AddProduct /></AdminRoute>
+             }
+            /> 
+
             <Route
               path="/admin/dashboard"
               element={
              <AdminRoute>
-              <AdminDashboard />
+              <Dashboard />
             </AdminRoute>
              }
            />
