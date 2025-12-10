@@ -30,4 +30,4 @@ export const AdminAuthProvider = ({ children }) => {
 };
 
 export const useAdmin = () => useContext(AdminAuthContext);
-export default AdminAuthContext;
+

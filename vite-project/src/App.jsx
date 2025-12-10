@@ -12,7 +12,8 @@ import AdminLogin from "./pages/Admin/AdminLogin";
 import Dashboard from "./pages/Admin/Dashboard";
 import Products from "./pages/Admin/Products";
 import AddProduct from "./pages/Admin/AddProduct";
-import AdminRoute from "../routes/AdminRoutes";
+import AdminRoute from "./routes/AdminRoutes";
+import AdminDashboard from "./pages/AdminDashboard";
 
 
 const App = () => {

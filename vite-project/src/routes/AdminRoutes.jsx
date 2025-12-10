@@ -4,9 +4,11 @@ import { useAdmin } from "../context/AdminAuthContext";
 const AdminRoutes = ({ children }) => {
   const { admin } = useAdmin();
 
-  if (!admin) return <Navigate to="/admin/login" replace />;
+  if (admin === undefined) {
+    return null; // prevents early render error
+  }
 
-  return children;
+  return admin ? children : <Navigate to="/admin/login" replace />;
 };
 
 export default AdminRoutes;
