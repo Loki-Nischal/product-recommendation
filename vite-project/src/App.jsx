@@ -18,7 +18,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 
 const App = () => {
   return (
-    <AuthProvider>
+    
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <main>
@@ -28,7 +28,9 @@ const App = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />  
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/product/:id" element={<ProductDetails />} />
+  
             
             {/* Protected Routes */}
             <Route
@@ -78,7 +80,7 @@ const App = () => {
           </Routes>
         </main>
       </div>
-    </AuthProvider>
+   
   );
 };
 
