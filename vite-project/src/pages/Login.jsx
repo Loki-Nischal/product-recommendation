@@ -5,103 +5,86 @@ import * as Yup from "yup";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API from "../api/api";
-import { AuthContext } from "../context/AuthContext"; // import context
+import { AuthContext } from "../context/AuthContext";
 
-// Validation schema
 const schema = Yup.object({
-  email: Yup.string()
-    .required("Email is required")
-    .email("Enter a valid email address"),
-  password: Yup.string()
-    .required("Password is required")
-    .matches(/^[A-Z]/, "Password must start with a capital letter")
-    .matches(/\d/, "Password must contain at least one number")
-    .min(6, "Password must be at least 6 characters"),
+  email: Yup.string().required("Email is required").email("Enter a valid email"),
+  password: Yup.string().required("Password is required").min(6, "Minimum 6 characters"),
 });
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useContext(AuthContext); // get login function
+  const { login } = useContext(AuthContext);
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm({ resolver: yupResolver(schema) });
+  const { register, handleSubmit, formState: { errors } } = useForm({ resolver: yupResolver(schema) });
 
   const onSubmit = async (data) => {
+    setLoading(true);
     try {
       const res = await API.post("/users/login", data);
-      alert("✅ Login successful!");
+      // Our API client returns `response.data` directly via interceptor,
+      // but some callers may still return the full response object.
+      const payload = res?.data ?? res;
+      const token = payload?.token;
+      const user = payload?.user;
 
-      // Update context state immediately
-      login(res.data.token); // this sets isLoggedIn = true
+      if (!token || !user) {
+        // Defensive: avoid throwing raw values that break UI. Provide clear message.
+        throw new Error(payload?.message || "Invalid login response from server");
+      }
 
-      navigate("/productdetails"); // redirect to product details
+      login(token, user);
+      navigate(user.role === "admin" ? "/admin/dashboard" : "/productdetails");
     } catch (err) {
-      console.error(err);
-      alert("❌ Invalid credentials!");
+      console.error("LOGIN ERROR:", err);
+      // Normalize different error shapes (string, Error, or server payload)
+      const errMsg =
+        (typeof err === 'string' && err) ||
+        err?.message ||
+        err?.msg ||
+        err?.error ||
+        (err && typeof err === 'object' ? JSON.stringify(err) : null) ||
+        '❌ Login failed';
+
+      alert(errMsg);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white shadow-lg rounded-2xl w-full max-w-md p-8">
-        <h2 className="text-3xl font-bold text-center text-slate-800 mb-6">
-          Login
-        </h2>
-
+      <div className="bg-white shadow-xl rounded-2xl w-full max-w-md p-8">
+        <h2 className="text-3xl font-bold text-center mb-6 text-slate-800">Login</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-          {/* Email */}
           <div>
             <input
               type="email"
               {...register("email")}
               placeholder="Email"
-              className={`border p-3 rounded-lg w-full outline-none focus:ring-2 ${
-                errors.email ? "border-red-500 focus:ring-red-400" : "focus:ring-blue-500"
-              }`}
+              className={`border p-3 rounded-lg w-full ${errors.email ? "border-red-500" : ""}`}
             />
-            {errors.email && (
-              <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
-            )}
+            {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
           </div>
 
-          {/* Password */}
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
               {...register("password")}
               placeholder="Password"
-              className={`border p-3 rounded-lg w-full outline-none focus:ring-2 ${
-                errors.password ? "border-red-500 focus:ring-red-400" : "focus:ring-blue-500"
-              }`}
+              className={`border p-3 rounded-lg w-full ${errors.password ? "border-red-500" : ""}`}
             />
-            <span
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-3 cursor-pointer text-gray-500 hover:text-gray-700"
-            >
+            <span onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 cursor-pointer text-gray-500">
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </span>
-            {errors.password && (
-              <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>
-            )}
+            {errors.password && <p className="text-red-500 text-sm">{errors.password.message}</p>}
           </div>
 
-          <button
-            type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-semibold transition-all duration-200"
-          >
-            Login
+          <button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-semibold">
+            {loading ? "Logging in..." : "Login"}
           </button>
-
-          <p className="text-center text-sm text-gray-500 mt-3">
-            Don’t have an account?{" "}
-            <a href="/register" className="text-blue-600 hover:text-blue-800 font-medium">
-              Register here
-            </a>
-          </p>
         </form>
       </div>
     </div>

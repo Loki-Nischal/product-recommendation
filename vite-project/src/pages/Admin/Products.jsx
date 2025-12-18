@@ -13,8 +13,9 @@ const Products = () => {
 
   useEffect(() => {
     // This ensures that whenever you land on this page, it grabs the latest list
-    fetchProducts(); 
-  }, []);
+    fetchProducts();
+    console.log('Products page loaded, fetching products...');
+  }, [fetchProducts]);
   const handleDelete = async (productId) => {
     if (!window.confirm("Are you sure you want to delete this product?")) return;
 
@@ -87,16 +88,21 @@ const Products = () => {
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <img
-                            src={p.image}
+                            src={p.image || p.img || "https://via.placeholder.com/40"}
                             alt={p.name || p.title}
-                            className="h-10 w-10 object-cover rounded"
+                            className="h-12 w-12 object-cover rounded border"
                             onError={(e) => (e.target.src = "https://via.placeholder.com/40?text=No+Image")}
                           />
-                          <span className="font-medium">{p.name || p.title}</span>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-gray-800">{p.name || p.title}</span>
+                            <span className="text-xs text-gray-500">{p.brand || "No Brand"}</span>
+                          </div>
                         </div>
                       </td>
                       <td className="p-4 text-gray-600">{p.category || "N/A"}</td>
-                      <td className="p-4 font-semibold text-green-600">${p.price}</td>
+                      <td className="p-4 font-semibold text-green-600">
+                        Rs {p.price ? parseFloat(p.price).toFixed(2) : "0.00"}
+                      </td>
                       <td className="p-4">
                         <span
                           className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -111,7 +117,7 @@ const Products = () => {
                       <td className="p-4">
                         <div className="flex items-center gap-1">
                           <span className="text-yellow-500">★</span>
-                          {p.rating || 0}
+                          <span className="font-medium">{(p.rating || 0).toFixed(1)}</span>
                         </div>
                       </td>
                       <td className="p-4 text-center">

@@ -1,59 +1,36 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Slider from "react-slick";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext"; // <-- MUST BE CORRECT PATH
+import { useAuth } from "../context/AuthContext";
+import api from "../api/api";
 
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
-const flashProducts = [
-  {
-    id: 1,
-    name: "Wireless Headphones",
-    price: 2999,
-    oldPrice: 4999,
-    img: "/image/headphone.jpeg",
-  },
-  {
-    id: 2,
-    name: "Smart Watch",
-    price: 2499,
-    oldPrice: 3999,
-    img: "/image/smartwatch.jpeg",
-  },
-  {
-    id: 3,
-    name: "Gaming Mouse",
-    price: 799,
-    oldPrice: 1499,
-    img: "/image/mouse.jpeg",
-  },
-  {
-    id: 4,
-    name: "Bluetooth Speaker",
-    price: 1299,
-    oldPrice: 2299,
-    img: "/image/speaker.jpeg",
-  },
-  {
-    id: 5,
-    name: "LED Monitor",
-    price: 10999,
-    oldPrice: 14999,
-    img: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: 6,
-    name: "Running Shoes",
-    price: 1999,
-    oldPrice: 3499,
-    img: "https://images.unsplash.com/photo-1528701800489-20be3c059f56?auto=format&fit=crop&w=800&q=80",
-  },
-];
-
 const FlashSale = () => {
   const navigate = useNavigate();
-  const { isLoggedIn } = useAuth(); // <-- detect if logged in
+  const { isLoggedIn } = useAuth();
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await api.get("/products");
+        // Response is { success: true, products: [...] }
+        const fetchedProducts = response.products || [];
+        // Get first 6 products for flash sale
+        setProducts(Array.isArray(fetchedProducts) ? fetchedProducts.slice(0, 6) : []);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   const settings = {
     dots: false,
@@ -78,23 +55,49 @@ const FlashSale = () => {
     navigate(`/product/${productId}`);
   };
 
+  if (loading) {
+    return (
+      <section className="py-12 bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-2xl font-bold mb-6">🔥 Flash Sale</h2>
+          <div className="text-center py-8">
+            <p className="text-gray-500">Loading flash sale products...</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (products.length === 0) {
+    return (
+      <section className="py-12 bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-2xl font-bold mb-6">🔥 Flash Sale</h2>
+          <div className="text-center py-8">
+            <p className="text-gray-500">No products available for flash sale yet.</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="py-12 bg-white">
       <div className="max-w-7xl mx-auto px-4">
         <h2 className="text-2xl font-bold mb-6">🔥 Flash Sale</h2>
 
         <Slider {...settings}>
-          {flashProducts.map((p) => (
+          {products.map((p) => (
             <div
-              key={p.id}
+              key={p._id || p.id}
               className="p-2 cursor-pointer"
-              onClick={() => handleClick(p.id)}
+              onClick={() => handleClick(p._id || p.id)}
             >
               <div className="bg-white border rounded-lg overflow-hidden shadow hover:shadow-lg transition">
                 <div className="relative">
                   <img
-                    src={p.img}
-                    alt={p.name}
+                    src={p.image || p.img || "https://via.placeholder.com/300"}
+                    alt={p.title || p.name}
                     className="w-full h-60 object-cover rounded-md shadow-sm"
                   />
                   <span className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-1 rounded">
@@ -104,15 +107,12 @@ const FlashSale = () => {
 
                 <div className="p-4 flex flex-col items-center">
                   <h3 className="font-semibold text-gray-800 mb-2 text-center">
-                    {p.name}
+                    {p.title || p.name}
                   </h3>
 
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-bold text-red-600">
-                      Rs {p.price}
-                    </span>
-                    <span className="text-sm text-gray-500 line-through">
-                      Rs {p.oldPrice}
+                      $ {p.price}
                     </span>
                   </div>
 

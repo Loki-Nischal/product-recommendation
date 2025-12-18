@@ -1,6 +1,16 @@
 import React from "react";
+import { useAuth } from "../context/AuthContext";
+import { Navigate } from "react-router-dom";
 
 const AdminDashboard = () => {
+  const { isLoggedIn, isAdmin } = useAuth();
+
+  // Redirect if user is not logged in
+  if (!isLoggedIn) return <Navigate to="/login" />;
+
+  // Redirect if user is logged in but not an admin
+  if (!isAdmin) return <Navigate to="/productdetails" />;
+
   return (
     <div className="min-h-screen flex bg-gray-100">
 

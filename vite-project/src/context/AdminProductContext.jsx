@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import api from "../api/api";
 
 const AdminProductContext = createContext();
@@ -21,43 +21,53 @@ export const AdminProductProvider = ({ children }) => {
   };
 
   // ---------------------------
-  // Fetch Products
+  // Fetch Products (stable identity)
   // ---------------------------
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await api.get("/products");
+      console.log("Response from /products:", res);
 
-      // Accepts ANY backend format
-      const finalProducts =
-        safeArray(res?.products) ||
-        safeArray(res?.data?.products) ||
-        safeArray(res);
+      // API wrapper returns response.data directly
+      // Backend returns: { success: true, products: [...] }
+      const productsData = res?.products || [];
+      console.log("Products from response:", productsData);
 
-      setProducts(finalProducts);
+      // Ensure it's always an array
+      const productsArray = Array.isArray(productsData) ? productsData : [];
+      console.log("Final products array:", productsArray);
+
+      setProducts(productsArray);
     } catch (err) {
       console.error("Error fetching products:", err);
       setError(err.message || "Failed to fetch products");
+      setProducts([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // ---------------------------
   // Add Product
   // ---------------------------
-  const addProduct = async (productData) => {
+  const addProduct = useCallback(async (productData) => {
     setError(null);
 
     try {
       const res = await api.post("/products", productData);
 
+      // Response is { success: true, product: {...} }
       const newProduct = res?.product || res?.data?.product || res;
 
       setProducts((prev) => {
         const prevSafe = Array.isArray(prev) ? prev : [];
-        return [...prevSafe, newProduct];
+        // Ensure newProduct is an object before adding
+        if (newProduct && typeof newProduct === 'object') {
+          return [...prevSafe, newProduct];
+        }
+        return prevSafe;
       });
 
       return newProduct;
@@ -66,12 +76,12 @@ export const AdminProductProvider = ({ children }) => {
       setError(msg);
       throw err;
     }
-  };
+  }, []);
 
   // ---------------------------
   // Delete Product
   // ---------------------------
-  const deleteProduct = async (productId) => {
+  const deleteProduct = useCallback(async (productId) => {
     setError(null);
     try {
       await api.delete(`/products/${productId}`);
@@ -87,12 +97,12 @@ export const AdminProductProvider = ({ children }) => {
       setError(msg);
       throw err;
     }
-  };
+  }, []);
 
   // ---------------------------
   // Update Product
   // ---------------------------
-  const updateProduct = async (productId, updates) => {
+  const updateProduct = useCallback(async (productId, updates) => {
     setError(null);
     try {
       const res = await api.put(`/products/${productId}`, updates);
@@ -112,20 +122,20 @@ export const AdminProductProvider = ({ children }) => {
       setError(msg);
       throw err;
     }
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    products,
+    loading,
+    error,
+    fetchProducts,
+    addProduct,
+    deleteProduct,
+    updateProduct,
+  }), [products, loading, error, fetchProducts, addProduct, deleteProduct, updateProduct]);
 
   return (
-    <AdminProductContext.Provider
-      value={{
-        products,
-        loading,
-        error,
-        fetchProducts,
-        addProduct,
-        deleteProduct,
-        updateProduct,
-      }}
-    >
+    <AdminProductContext.Provider value={value}>
       {children}
     </AdminProductContext.Provider>
   );

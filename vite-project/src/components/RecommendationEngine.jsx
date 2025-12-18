@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ProductCard from './ProductCard';
 import UserPreferences from './UserPreferences';
 import AdvancedFilters from './AdvancedFilters';
 import { useRecommendation } from '../hooks/useRecommendation';
 import { useDebounce } from '../hooks/useDebounce';
-import { products } from '../data/products';
-import { Filter, Grid, List, Search } from 'lucide-react';
+import api from '../api/api';
+import { Filter, Grid, List, Search, Loader } from 'lucide-react';
 
 const RecommendationEngine = () => {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
   const [userPreferences, setUserPreferences] = useState({
     preferredCategories: [],
     interests: [],
@@ -27,33 +31,70 @@ const RecommendationEngine = () => {
     rating: 0
   });
 
+  // Fetch products from backend
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await api.get('/products');
+        // Response is now { success: true, products: [...] } from the interceptor
+        const fetchedProducts = response.products || [];
+        setProducts(Array.isArray(fetchedProducts) ? fetchedProducts : []);
+      } catch (err) {
+        console.error('Error fetching products:', err);
+        setError('Failed to load products. Please try again later.');
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
-  const recommendations = useRecommendation(userPreferences, userBehavior);
+  const recommendations = useRecommendation(products, userPreferences, userBehavior);
 
   // Filter products based on search, category, and advanced filters
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-                         product.tags.some(tag => tag.toLowerCase().includes(debouncedSearchTerm.toLowerCase()));
-    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
+    // Safe property access
+    const name = (product.name || product.title || '').toLowerCase();
+    const title = (product.title || product.name || '').toLowerCase();
+    const category = product.category || '';
+    const brand = product.brand || '';
+    const rating = product.rating || 0;
+    const price = product.price || 0;
+    const tags = product.tags || [];
+
+    // Search matching
+    const searchLower = debouncedSearchTerm.toLowerCase();
+    const matchesSearch = debouncedSearchTerm === '' ||
+                         name.includes(searchLower) ||
+                         title.includes(searchLower) ||
+                         tags.some(tag => tag.toLowerCase().includes(searchLower));
+
+    // Category matching
+    const matchesCategory = selectedCategory === 'all' || category === selectedCategory;
     
     // Advanced filters
     const matchesAdvancedCategory = advancedFilters.categories.length === 0 || 
-                                   advancedFilters.categories.includes(product.category);
+                                   advancedFilters.categories.includes(category);
     const matchesBrand = advancedFilters.brands.length === 0 || 
-                        advancedFilters.brands.includes(product.brand);
-    const matchesRating = product.rating >= advancedFilters.rating;
-    const matchesPrice = product.price >= advancedFilters.priceRange[0] && 
-                        product.price <= advancedFilters.priceRange[1];
+                        advancedFilters.brands.includes(brand);
+    const matchesRating = rating >= advancedFilters.rating;
+    const matchesPrice = price >= advancedFilters.priceRange[0] && 
+                        price <= advancedFilters.priceRange[1];
 
     return matchesSearch && matchesCategory && matchesAdvancedCategory && 
            matchesBrand && matchesRating && matchesPrice;
   });
 
-  const categories = ['all', ...new Set(products.map(p => p.category))];
+  const categories = ['all', ...new Set(products.map(p => p.category).filter(Boolean))];
 
   const handleProductView = (product) => {
     setUserBehavior(prev => [...prev, {
-      productId: product.id,
+      productId: product.id || product._id,
       category: product.category,
       tags: product.tags,
       action: 'view',
@@ -63,9 +104,9 @@ const RecommendationEngine = () => {
 
   const handleProductLike = (product) => {
     setUserBehavior(prev => [...prev, {
-      productId: product.id,
+      productId: product.id || product._id,
       category: product.category,
-      tags: product.tags,
+      tags: product.tags || [],
       action: 'like',
       timestamp: Date.now()
     }]);
@@ -73,19 +114,19 @@ const RecommendationEngine = () => {
     // Also add product tags to user interests
     setUserPreferences(prev => ({
       ...prev,
-      interests: [...new Set([...prev.interests, ...product.tags])]
+      interests: [...new Set([...prev.interests, ...(product.tags || [])])]
     }));
   };
 
   const handleAddToCart = (product) => {
     setUserBehavior(prev => [...prev, {
-      productId: product.id,
+      productId: product.id || product._id,
       category: product.category,
       tags: product.tags,
       action: 'add_to_cart',
       timestamp: Date.now()
     }]);
-    alert(`Added ${product.name} to cart!`);
+    alert(`Added ${product.name || product.title} to cart!`);
   };
 
   return (
@@ -107,6 +148,7 @@ const RecommendationEngine = () => {
             <UserPreferences 
               preferences={userPreferences}
               setPreferences={setUserPreferences}
+              products={products}
             />
             <AdvancedFilters 
               filters={advancedFilters}
@@ -117,6 +159,25 @@ const RecommendationEngine = () => {
 
           {/* Main Content */}
           <div className="lg:col-span-3">
+            {/* Loading State */}
+            {loading && (
+              <div className="flex flex-col items-center justify-center py-24">
+                <Loader className="animate-spin text-blue-500 mb-4" size={48} />
+                <p className="text-lg text-gray-600">Loading products...</p>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !loading && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-lg mb-8">
+                <p className="font-semibold">Error</p>
+                <p>{error}</p>
+              </div>
+            )}
+
+            {/* Products Loaded */}
+            {!loading && products.length > 0 && (
+              <>
             {/* Search and Filters */}
             <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
               <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
@@ -189,7 +250,7 @@ const RecommendationEngine = () => {
                 }`}>
                   {recommendations.map(product => (
                     <ProductCard
-                      key={product.id}
+                      key={product._id || product.id}
                       product={product}
                       onLike={handleProductLike}
                       onView={handleProductView}
@@ -215,7 +276,7 @@ const RecommendationEngine = () => {
                 }`}>
                   {filteredProducts.map(product => (
                     <ProductCard
-                      key={product.id}
+                      key={product._id || product.id}
                       product={product}
                       onLike={handleProductLike}
                       onView={handleProductView}
@@ -229,6 +290,15 @@ const RecommendationEngine = () => {
                 </div>
               )}
             </section>
+              </>
+            )}
+
+            {/* No Products State */}
+            {!loading && products.length === 0 && !error && (
+              <div className="text-center py-24">
+                <p className="text-gray-500 text-lg">No products available yet. Check back later!</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

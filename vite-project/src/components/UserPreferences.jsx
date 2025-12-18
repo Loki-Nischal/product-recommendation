@@ -1,10 +1,9 @@
 import React from 'react';
-import { products } from '../data/products';
 
-const UserPreferences = ({ preferences, setPreferences }) => {
-  // Extract unique categories and tags from products
-  const categories = [...new Set(products.map(p => p.category))];
-  const allTags = [...new Set(products.flatMap(p => p.tags))];
+const UserPreferences = ({ preferences, setPreferences, products = [] }) => {
+  // Extract unique categories and tags from passed products
+  const categories = [...new Set((products || []).map(p => p.category).filter(Boolean))];
+  const allTags = [...new Set((products || []).flatMap(p => p.tags || []))];
   const popularTags = allTags.slice(0, 12); // Top 12 tags
 
   const toggleCategory = (category) => {

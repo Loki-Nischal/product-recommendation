@@ -98,13 +98,13 @@ const ProductCard = ({
       {/* Product Info */}
       <div className="p-4">
         <div className="flex justify-between items-start mb-2">
-          <h3 className="font-bold text-lg text-gray-800 line-clamp-2 flex-1 mr-2">{product.name}</h3>
+          <h3 className="font-bold text-lg text-gray-800 line-clamp-2 flex-1 mr-2">{product.name || product.title}</h3>
           <div className="text-right">
-            <span className="font-bold text-green-600 text-lg">${product.price}</span>
+            <span className="font-bold text-green-600 text-lg">$ {(product.price || 0).toFixed(2)}</span>
           </div>
         </div>
 
-        <p className="text-gray-600 text-sm mb-2 capitalize">{product.category}</p>
+        <p className="text-gray-600 text-sm mb-2 capitalize">{product.category || "Uncategorized"}</p>
         
         {/* Rating and Brand */}
         <div className="flex items-center justify-between mb-3">
@@ -115,22 +115,22 @@ const ProductCard = ({
                   key={i}
                   size={14}
                   className={`${
-                    i < Math.floor(product.rating) 
+                    i < Math.floor(product.rating || 0) 
                       ? 'text-yellow-400 fill-current' 
                       : 'text-gray-300'
                   }`}
                 />
               ))}
             </div>
-            <span className="ml-2 text-sm text-gray-600">({product.rating})</span>
+            <span className="ml-2 text-sm text-gray-600">({(product.rating || 0).toFixed(1)})</span>
           </div>
           <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-            {product.brand}
+            {product.brand || "N/A"}
           </span>
         </div>
 
         {/* Features */}
-        {product.features && (
+        {product.features && product.features.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
             {product.features.slice(0, 2).map((feature, index) => (
               <span 
@@ -138,8 +138,8 @@ const ProductCard = ({
                 className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs"
               >
                 {feature}
-              </span>
-            ))}
+
+              </span>            ))}
           </div>
         )}
 

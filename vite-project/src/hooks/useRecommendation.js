@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
-import { products } from '../data/products';
 import { recommendationAlgorithms, generateExplanation } from '../utils/recommendationAlgorithms';
 
-export const useRecommendation = (userPreferences, userBehavior = []) => {
+// Accept `products` as the first argument so we can use live data from the API
+export const useRecommendation = (products = [], userPreferences, userBehavior = []) => {
   const [recommendations, setRecommendations] = useState([]);
 
   useEffect(() => {
     const generateRecommendations = () => {
       const scoredProducts = recommendationAlgorithms.hybrid(
-        products, 
-        userPreferences, 
+        products,
+        userPreferences,
         userBehavior
       );
 
@@ -27,7 +27,7 @@ export const useRecommendation = (userPreferences, userBehavior = []) => {
     };
 
     setRecommendations(generateRecommendations());
-  }, [userPreferences, userBehavior]);
+  }, [products, userPreferences, userBehavior]);
 
   return recommendations;
 };
