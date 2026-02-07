@@ -46,7 +46,7 @@ export const recommendationAlgorithms = {
       if (product.isNew) finalScore *= 1.2;
       
       // Boost high-rated products
-      if (product.rating >= 4.5) finalScore *= 1.15;
+      // if (product.rating >= 4.5) finalScore *= 1.15;
       
       // Penalize out-of-stock items
       if (product.stock === 0) finalScore *= 0.1;

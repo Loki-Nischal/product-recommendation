@@ -1,6 +1,6 @@
 import express from "express";
 import { recommendProducts } from "../ai/recommendationEngine.js";
-import Product from "../models/Product.js";
+import Product from "../models/product.js";
 
 const router = express.Router();
 

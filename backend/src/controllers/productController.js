@@ -14,14 +14,27 @@ export const getProducts = async (req, res) => {
 };
 
 // =============================
-// ADD NEW PRODUCT
-// =============================
+// ADD PRODUCT WITH EMBEDDING
 export const addProduct = async (req, res) => {
   try {
-    const product = await Product.create(req.body);
-    return res.status(201).json({ success: true, product });
+    const { title, description = "", tags = [] } = req.body;
+
+    const textForEmbedding = `
+      ${title}
+      ${description}
+      ${tags.join(" ")}
+    `;
+
+    const embedding = await generateEmbedding(textForEmbedding);
+
+    const product = await Product.create({
+      ...req.body,
+      embedding,
+    });
+
+    res.status(201).json({ success: true, product });
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
