@@ -13,6 +13,7 @@ import Dashboard from "./pages/Admin/Dashboard";
 import Products from "./pages/Admin/Products";
 import AddProduct from "./pages/Admin/AddProduct";
 import AdminRoute from "./routes/AdminRoutes";
+import ChatBot from "./components/ChatBot";
 
 const App = () => {
   return (
@@ -77,6 +78,7 @@ const App = () => {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      <ChatBot />
     </div>
   );
 };

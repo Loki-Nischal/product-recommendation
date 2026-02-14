@@ -11,7 +11,8 @@ const productSchema = new mongoose.Schema(
     brand: { type: String },
     rating: { type: Number, default: 4 },
     stock: { type: Number, default: 10 },
-    tags: { type: [String], default: [] }
+    tags: { type: [String], default: [] },
+    embedding: { type: [Number], index: '2dsphere' }
   },
   { timestamps: true }
 );

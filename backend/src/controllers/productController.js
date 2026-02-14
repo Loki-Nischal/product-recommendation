@@ -1,5 +1,19 @@
 import Product from "../models/product.js";
 import User from "../models/userModel.js";
+// Dynamically import generateEmbedding to avoid initialization issues
+let generateEmbedding;
+try {
+  const embeddingModule = await import("../ai/embeddingService.js");
+  generateEmbedding = embeddingModule.generateEmbedding;
+  console.log("✅ Embedding service loaded");
+} catch (error) {
+  console.warn("⚠️ Embedding service not found, using fallback");
+  generateEmbedding = async () => {
+    console.log("🎲 Using fallback mock embedding");
+    return Array.from({ length: 1536 }, () => Math.random() * 2 - 1);
+  };
+}
+
 
 // =============================
 // GET ALL PRODUCTS
@@ -17,15 +31,29 @@ export const getProducts = async (req, res) => {
 // ADD PRODUCT WITH EMBEDDING
 export const addProduct = async (req, res) => {
   try {
+    console.log("📦 Adding product:", req.body.title);
+    
     const { title, description = "", tags = [] } = req.body;
 
     const textForEmbedding = `
       ${title}
       ${description}
       ${tags.join(" ")}
-    `;
+    `.trim();
+    
+    console.log("📝 Text for embedding:", textForEmbedding);
+    
+    // Check if generateEmbedding is imported correctly
+    if (typeof generateEmbedding !== 'function') {
+      console.error("❌ generateEmbedding is not a function!");
+      return res.status(500).json({ 
+        success: false, 
+        message: "Embedding service not available" 
+      });
+    }
 
     const embedding = await generateEmbedding(textForEmbedding);
+    console.log("✅ Embedding generated:", embedding ? "Success" : "Failed");
 
     const product = await Product.create({
       ...req.body,
@@ -34,7 +62,12 @@ export const addProduct = async (req, res) => {
 
     res.status(201).json({ success: true, product });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error("❌ Error adding product:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 };
 

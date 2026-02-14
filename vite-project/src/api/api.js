@@ -19,25 +19,38 @@ API.interceptors.response.use(
   },
   (error) => {
     // Normalize error shape and handle auth failures globally
-    console.error('API Error:', error);
+    try {
+      const status = error.response?.status;
+      const payload = error.response?.data;
+      // Log a structured error so developer can see full details
+      console.error('API Error:', {
+        message: error.message,
+        status,
+        data: payload,
+        headers: error.response?.headers,
+        config: error.config,
+      });
 
-    const status = error.response?.status;
-    const payload = error.response?.data;
-    const message = payload?.message || payload?.error || error.message || 'API Error';
+      const message = payload?.message || payload?.error || error.message || 'API Error';
 
-    // If unauthorized, clear session and force login
-    if (status === 401) {
-      try {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        // Redirect to login page to re-authenticate
-        window.location.href = '/login';
-      } catch (e) {
-        // ignore
+      // If unauthorized, clear session and force login
+      if (status === 401) {
+        try {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          // Redirect to login page to re-authenticate
+          window.location.href = '/login';
+        } catch (e) {
+          // ignore
+        }
       }
-    }
 
-    return Promise.reject({ message, status, data: payload });
+      return Promise.reject({ message, status, data: payload });
+    } catch (logErr) {
+      // If logging itself fails, fallback to generic rejection
+      console.error('API Error (logging failed):', logErr, error);
+      return Promise.reject({ message: error.message || 'API Error' });
+    }
   }
 );
 
