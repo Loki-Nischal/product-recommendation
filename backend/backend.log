@@ -1,0 +1,182 @@
+[33m[nodemon] 2.0.15[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: js,mjs,json[39m
+[32m[nodemon] starting `node ./src/server.js`[39m
+✅ OpenAI SDK loaded
+✅ OpenAI client initialized
+✅ Embedding service loaded
+node:events:497
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::4000
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at Function.listen (C:\Users\budha\Desktop\Product recommendation system\backend\node_modules\express\lib\application.js:635:24)
+    at file:///C:/Users/budha/Desktop/Product%20recommendation%20system/backend/src/server.js:32:5
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1976:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '::',
+  port: 4000
+}
+
+Node.js v22.19.0
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node ./src/server.js`[39m
+✅ OpenAI SDK loaded
+✅ OpenAI client initialized
+✅ Embedding service loaded
+Server running at http://localhost:4000
+Connected to MongoDB
+⚠️ OpenAI error, falling back to keyword search: 429 Rate limit of 1 per 60s exceeded for UserByModelByMinute. Please wait 0 seconds before retrying.
+🔍 MongoDB Query: {
+  "$or": [
+    {
+      "title": {
+        "$regex": "sports|shoes",
+        "$options": "i"
+      }
+    },
+    {
+      "name": {
+        "$regex": "sports|shoes",
+        "$options": "i"
+      }
+    },
+    {
+      "description": {
+        "$regex": "sports|shoes",
+        "$options": "i"
+      }
+    }
+  ],
+  "category": "Shoes",
+  "stock": {
+    "$gt": 0
+  }
+}
+📦 Found 0 products
+🤖 Using real OpenAI embedding for: sports shoes...
+🔁 Falling back to embedding search for: sports shoes
+🔎 Top embedding scores: []
+🔎 Embedding search returned no matches at all
+⚠️ OpenAI error, falling back to keyword search: 429 Rate limit of 8 per 86400s exceeded for UserByModelByDay. Please wait 82979 seconds before retrying.
+🔍 MongoDB Query: {
+  "$or": [
+    {
+      "title": {
+        "$regex": "shirt",
+        "$options": "i"
+      }
+    },
+    {
+      "name": {
+        "$regex": "shirt",
+        "$options": "i"
+      }
+    },
+    {
+      "description": {
+        "$regex": "shirt",
+        "$options": "i"
+      }
+    }
+  ],
+  "stock": {
+    "$gt": 0
+  }
+}
+📦 Found 1 products
+⚠️ OpenAI error, falling back to keyword search: 429 Rate limit of 1 per 60s exceeded for UserByModelByMinute. Please wait 58 seconds before retrying.
+⚠️ OpenAI error, falling back to keyword search: 429 Rate limit of 8 per 86400s exceeded for UserByModelByDay. Please wait 82784 seconds before retrying.
+🔍 MongoDB Query: {
+  "$or": [
+    {
+      "title": {
+        "$regex": "shoes",
+        "$options": "i"
+      }
+    },
+    {
+      "name": {
+        "$regex": "shoes",
+        "$options": "i"
+      }
+    },
+    {
+      "description": {
+        "$regex": "shoes",
+        "$options": "i"
+      }
+    }
+  ],
+  "category": "Shoes",
+  "stock": {
+    "$gt": 0
+  }
+}
+📦 Found 0 products
+🤖 Using real OpenAI embedding for: shoes...
+🔁 Falling back to embedding search for: shoes
+🔎 Top embedding scores: []
+🔎 Embedding search returned no matches at all
+⚠️ OpenAI error, falling back to keyword search: 429 Rate limit of 1 per 60s exceeded for UserByModelByMinute. Please wait 0 seconds before retrying.
+🔍 MongoDB Query: {
+  "$or": [
+    {
+      "title": {
+        "$regex": "shoes",
+        "$options": "i"
+      }
+    },
+    {
+      "name": {
+        "$regex": "shoes",
+        "$options": "i"
+      }
+    },
+    {
+      "description": {
+        "$regex": "shoes",
+        "$options": "i"
+      }
+    }
+  ],
+  "category": "Shoes",
+  "stock": {
+    "$gt": 0
+  }
+}
+📦 Found 0 products
+🤖 Using real OpenAI embedding for: shoes...
+🔁 Falling back to embedding search for: shoes
+🔎 Top embedding scores: []
+🔎 Embedding search returned no matches at all
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node ./src/server.js`[39m
+✅ OpenAI SDK loaded
+✅ OpenAI client initialized
+✅ Embedding service loaded
+Port 4001 is already in use. Choose a different PORT or stop the process using it.
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node ./src/server.js`[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node ./src/server.js`[39m
+✅ OpenAI SDK loaded
+✅ OpenAI client initialized
+✅ Embedding service loaded
+Port 4000 is already in use. Choose a different PORT or stop the process using it.
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting child process[39m
+[32m[nodemon] starting `node ./src/server.js`[39m

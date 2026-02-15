@@ -1,5 +1,9 @@
 import Product from "../models/product.js";
 import User from "../models/userModel.js";
+import { generateEmbedding, cosineSimilarity } from "../ai/embeddingService.js";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 
 /**
  * GET /api/recommendations
@@ -111,5 +115,139 @@ export const getRecommendations = async (req, res) => {
     } catch (err) {
         console.error("getRecommendations error:", err?.message || err);
         return res.status(500).json({ success: false, message: "Recommendation failed" });
+    }
+};
+
+// GET /api/recommend/personalized?q=
+export const getPersonalizedRecommendations = async (req, res) => {
+    try {
+        const q = (req.query.q || "").trim();
+        const queryEmbedding = q ? await generateEmbedding(q) : null;
+
+        const readTokenUser = async () => {
+            if (req.user?._id) {
+                return User.findById(req.user._id)
+                    .populate("likedProducts viewedProducts")
+                    .lean();
+            }
+
+            const auth = req.headers.authorization;
+            if (!auth || !auth.startsWith("Bearer ")) return null;
+
+            const token = auth.split(" ")[1];
+            const decoded = jwt.verify(token, JWT_SECRET);
+            if (!decoded?.id) return null;
+
+            return User.findById(decoded.id)
+                .populate("likedProducts viewedProducts")
+                .lean();
+        };
+
+        let user = null;
+        try {
+            user = await readTokenUser();
+        } catch {
+            user = null;
+        }
+
+        const averageVectors = (vectors) => {
+            const valid = vectors.filter((v) => Array.isArray(v) && v.length > 0);
+            if (valid.length === 0) return null;
+
+            const dim = valid[0].length;
+            const sameDim = valid.filter((v) => v.length === dim);
+            if (sameDim.length === 0) return null;
+
+            const sum = new Array(dim).fill(0);
+            for (const v of sameDim) {
+                for (let i = 0; i < dim; i++) sum[i] += v[i];
+            }
+            return sum.map((x) => x / sameDim.length);
+        };
+
+        const buildUserInterestVector = async (u) => {
+            if (!u) return null;
+
+            const vectors = [];
+            const liked = Array.isArray(u.likedProducts) ? u.likedProducts : [];
+            const viewed = Array.isArray(u.viewedProducts) ? u.viewedProducts : [];
+
+            for (const p of [...liked, ...viewed]) {
+                if (Array.isArray(p?.embedding) && p.embedding.length > 0) vectors.push(p.embedding);
+            }
+
+            const queries = Array.isArray(u.lastSearchQueries) ? u.lastSearchQueries.slice(0, 10) : [];
+            if (queries.length > 0) {
+                const queryEmbeddings = await Promise.all(
+                    queries.map(async (text) => {
+                        try {
+                            return await generateEmbedding(text);
+                        } catch {
+                            return null;
+                        }
+                    })
+                );
+                for (const emb of queryEmbeddings) {
+                    if (Array.isArray(emb) && emb.length > 0) vectors.push(emb);
+                }
+            }
+
+            return averageVectors(vectors);
+        };
+
+        const userInterestVector = await buildUserInterestVector(user);
+
+        const products = await Product.find({ embedding: { $exists: true, $ne: [] } }).lean();
+        if (products.length === 0) {
+            return res.json({ success: true, personalized: true, products: [] });
+        }
+
+        const toMinMax = (values) => {
+            if (!values.length) return [];
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            if (min === max) return values.map(() => 0);
+            return values.map((v) => (v - min) / (max - min));
+        };
+
+        const scored = products.map((product) => {
+            const semanticScore = Array.isArray(queryEmbedding)
+                ? cosineSimilarity(queryEmbedding, product.embedding || [])
+                : 0;
+            const behaviorScore = Array.isArray(userInterestVector)
+                ? cosineSimilarity(userInterestVector, product.embedding || [])
+                : 0;
+            const popularityScore = Number(product.views || 0);
+
+            return { product, semanticScore, behaviorScore, popularityScore };
+        });
+
+        const semanticNormalized = toMinMax(scored.map((item) => item.semanticScore));
+        const behaviorNormalized = toMinMax(scored.map((item) => item.behaviorScore));
+        const popularityNormalized = toMinMax(scored.map((item) => item.popularityScore));
+
+        const ranked = scored
+            .map((item, idx) => {
+                const finalScore =
+                    0.6 * (semanticNormalized[idx] || 0) +
+                    0.3 * (behaviorNormalized[idx] || 0) +
+                    0.1 * (popularityNormalized[idx] || 0);
+
+                return {
+                    ...item.product,
+                    semanticScore: item.semanticScore,
+                    behaviorScore: item.behaviorScore,
+                    popularityScore: item.popularityScore,
+                    finalScore,
+                };
+            })
+            .sort((a, b) => b.finalScore - a.finalScore)
+            .slice(0, 10);
+
+        // fallback behavior: if no history/user vector, ranking is effectively semantic-only
+        return res.json({ success: true, personalized: true, products: ranked });
+    } catch (err) {
+        console.error("personalized recommendation error:", err?.message || err);
+        return res.status(500).json({ success: false, message: "Personalized recommendation failed" });
     }
 };

@@ -79,25 +79,83 @@ export async function handleChat(req, res) {
         products = products.filter(p => p.stock > 0);
       }
 
-      console.log(`📦 Found ${products.length} products`);
+      console.log(`📦 AND-match found ${products.length} products`);
 
-      // Semantic fallback when no exact matches
+      // ── Progressive fallback when strict AND returns nothing ──
       if (products.length === 0) {
+        const keywordsStr = parsed.filters?.keywords || message;
+        // Normalize words: remove noise, strip trailing 's' for plural matching
+        const rawWords = keywordsStr.toLowerCase().split(/\s+/).filter(w => w.length > 1);
+        // Also include singular forms for broader matching
+        const words = [...new Set(rawWords.flatMap(w => w.endsWith('s') ? [w, w.slice(0, -1)] : [w]))];
+
+        if (words.length > 0) {
+          console.log('🔁 Falling back to text-relevance scoring for:', words.join(', '));
+
+          // Build a broad OR query that matches ANY keyword in any text field
+          const orQuery = {
+            $or: words.flatMap(w => [
+              { title: { $regex: w, $options: 'i' } },
+              { name: { $regex: w, $options: 'i' } },
+              { description: { $regex: w, $options: 'i' } },
+              { tags: { $regex: w, $options: 'i' } },
+              { brand: { $regex: w, $options: 'i' } }
+            ]),
+            stock: { $gt: 0 }
+          };
+
+          // Respect category filter if set
+          if (parsed.filters?.category) orQuery.category = parsed.filters.category;
+
+          const candidates = await Product.find(orQuery).lean();
+
+          // Score each candidate by number of keyword hits across all fields
+          const scored = candidates.map(p => {
+            const haystack = [
+              p.title, p.name, p.description,
+              ...(p.tags || []),
+              p.brand, p.category
+            ].filter(Boolean).join(' ').toLowerCase();
+
+            let score = 0;
+            for (const w of words) {
+              if (haystack.includes(w)) score += 1;
+            }
+            // Bonus for title/name exact keyword hit (most important field)
+            const titleLower = ((p.title || '') + ' ' + (p.name || '')).toLowerCase();
+            for (const w of words) {
+              if (titleLower.includes(w)) score += 2;
+            }
+            return { product: p, score };
+          });
+
+          // Sort by score descending, then by rating
+          scored.sort((a, b) => b.score - a.score || (b.product.rating || 0) - (a.product.rating || 0));
+
+          // Only keep products that match at least 1 keyword
+          const relevant = scored.filter(s => s.score > 0);
+
+          if (relevant.length > 0) {
+            products = relevant.slice(0, 10).map(s => s.product);
+            console.log(`🔎 Relevance scoring returned ${products.length} products (top score: ${relevant[0].score})`);
+          }
+        }
+      }
+
+      // ── Embedding fallback (only if we have a real OpenAI client) ──
+      if (products.length === 0 && getOpenAI()) {
         try {
           const qText = (parsed.filters && parsed.filters.keywords) ? parsed.filters.keywords : message;
           const qEmbedding = await generateEmbedding(qText);
           if (qEmbedding) {
             console.log('🔁 Falling back to embedding search for:', qText.substring(0, 100));
 
-            // Try candidates in preferred category first (if any), then fall back to all categories
             let candidates = [];
             const candidateQuery = { embedding: { $exists: true, $ne: [] } };
             const preferredCat = parsed.filters?.category || parsed.filters?.preferredCategory;
             if (preferredCat) {
-              const qWithCat = { ...candidateQuery, category: preferredCat };
-              candidates = await Product.find(qWithCat).lean();
+              candidates = await Product.find({ ...candidateQuery, category: preferredCat }).lean();
             }
-            // If none found in preferred category, search across all products with embeddings
             if (!candidates || candidates.length === 0) {
               candidates = await Product.find(candidateQuery).lean();
             }
@@ -110,20 +168,19 @@ export async function handleChat(req, res) {
             if (strong.length > 0) {
               products = strong;
               console.log(`🔎 Embedding search returned ${strong.length} strong matches`);
-            } else {
-              const top5 = scored.slice(0, 5);
-              console.log('🔎 Top embedding scores:', top5.map(t => ({ id: t.product._id, score: t.score })));
-              if (top5.length > 0) {
-                products = top5.map(s => s.product);
-                console.log(`🔎 Embedding fallback returning top ${products.length} best-effort matches (low confidence)`);
-              } else {
-                console.log('🔎 Embedding search returned no matches at all');
-              }
+            } else if (scored.length > 0) {
+              products = scored.slice(0, 5).map(s => s.product);
+              console.log(`🔎 Embedding fallback returning top ${products.length} best-effort matches`);
             }
           }
         } catch (embErr) {
           console.warn('⚠️ Embedding fallback failed:', embErr?.message || embErr);
         }
+      }
+
+      // If still nothing, let user know
+      if (products.length === 0) {
+        parsed.reply = (parsed.reply || '') + '\n\nSorry, I couldn\'t find any matching products. Try different keywords!';
       }
     }
 
@@ -192,17 +249,29 @@ function buildMongoQuery(f) {
   if (f.keywords) {
     const words = f.keywords.split(/\s+/).filter(Boolean);
     if (words.length > 0) {
-      q.$or = [
-        { title: { $regex: words.join('|'), $options: 'i' } },
-        { name: { $regex: words.join('|'), $options: 'i' } },
-        { description: { $regex: words.join('|'), $options: 'i' } }
-      ];
+      // AND semantics: every keyword must appear in at least one text field or tags
+      q.$and = words.map(word => ({
+        $or: [
+          { title: { $regex: word, $options: 'i' } },
+          { name: { $regex: word, $options: 'i' } },
+          { description: { $regex: word, $options: 'i' } },
+          { tags: { $regex: word, $options: 'i' } },
+          { brand: { $regex: word, $options: 'i' } },
+          { category: { $regex: word, $options: 'i' } }
+        ]
+      }));
     }
   }
 
-  if (f.category) q.category = f.category;
+  // Only enforce category as a hard filter when there are no keywords
+  // (when keywords exist, category is matched as part of the AND clauses above)
+  if (f.category && !f.keywords) q.category = f.category;
+
   if (f.brand) q.brand = { $regex: new RegExp(f.brand, 'i') };
-  if (f.tags?.length) q.tags = { $in: f.tags };
+  if (f.tags?.length) {
+    if (!q.$and) q.$and = [];
+    q.$and.push({ tags: { $in: f.tags } });
+  }
 
   if (f.minPrice || f.maxPrice) {
     q.price = {};
@@ -271,15 +340,33 @@ function smartKeywordParse(message) {
     if (lower.includes(cat)) { category = cat.charAt(0).toUpperCase() + cat.slice(1); break; }
   }
 
-  // Strip noise words to get search keywords
+  // Special-case: map laptop/notebook -> Electronics category
+  if (!category && /\b(laptop|laptops|notebook|notebooks)\b/.test(lower)) {
+    category = 'Electronics';
+  }
+
+  // Strip noise words to get search keywords — keep product-relevant terms
+  // Words like "best", "top", "good" are intent modifiers, not product keywords
   const noise = ['show', 'me', 'find', 'search', 'get', 'want', 'need', 'looking', 'for',
-    'some', 'a', 'an', 'the', 'please', 'can', 'you', 'i', 'any', 'good',
-    'cheap', 'budget', 'affordable', 'best', 'top', 'under', 'below', 'above', 'over'];
+    'some', 'a', 'an', 'the', 'please', 'can', 'you', 'i', 'any',
+    'cheap', 'budget', 'affordable', 'under', 'below', 'above', 'over',
+    'what', 'which', 'are', 'is', 'do', 'does', 'have', 'has', 'with', 'of', 'in',
+    'recommend', 'suggest', 'give', 'tell', 'list',
+    'best', 'top', 'good', 'great', 'nice', 'cool', 'premium', 'high', 'end',
+    'most', 'popular', 'rated', 'quality'];
   const keywords = lower
     .replace(/[^\w\s]/g, '')
     .split(/\s+/)
     .filter(w => w.length > 1 && !noise.includes(w) && !/^\d+$/.test(w))
+    // Normalize common plurals for better matching (laptops→laptop, phones→phone, etc.)
+    .map(w => w.replace(/s$/, ''))
     .join(' ');
+
+  // If user mentions gaming, include it as a tag to prefer gaming-related items
+  const tags = [];
+  if (/\bgaming\b/.test(lower)) tags.push('gaming');
+  if (/\bwireless\b/.test(lower)) tags.push('wireless');
+  if (/\bbluetooth\b/.test(lower)) tags.push('bluetooth');
 
   const sort = wantsCheap ? 'price-low' : wantsBest ? 'price-high' : null;
 
@@ -295,7 +382,7 @@ function smartKeywordParse(message) {
       brand: null,
       minPrice,
       maxPrice,
-      tags: null,
+      tags: tags.length > 0 ? tags : null,
       minRating: null,
       inStockOnly: true
     },

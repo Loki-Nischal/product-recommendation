@@ -32,7 +32,7 @@ export const getProducts = async (req, res) => {
 export const addProduct = async (req, res) => {
   try {
     console.log("📦 Adding product:", req.body.title);
-    
+
     const { title, description = "", tags = [] } = req.body;
 
     const textForEmbedding = `
@@ -40,15 +40,15 @@ export const addProduct = async (req, res) => {
       ${description}
       ${tags.join(" ")}
     `.trim();
-    
+
     console.log("📝 Text for embedding:", textForEmbedding);
-    
+
     // Check if generateEmbedding is imported correctly
     if (typeof generateEmbedding !== 'function') {
       console.error("❌ generateEmbedding is not a function!");
-      return res.status(500).json({ 
-        success: false, 
-        message: "Embedding service not available" 
+      return res.status(500).json({
+        success: false,
+        message: "Embedding service not available"
       });
     }
 
@@ -63,8 +63,8 @@ export const addProduct = async (req, res) => {
     res.status(201).json({ success: true, product });
   } catch (err) {
     console.error("❌ Error adding product:", err);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: err.message,
       stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
@@ -95,12 +95,34 @@ export const deleteProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const product = await Product.findByIdAndUpdate(id, req.body, { new: true });
+    // Normalize title/name: if the client updates one but not the other,
+    // keep them in sync so frontends that read either field show consistent values.
+    const updates = { ...req.body };
+    // Treat empty string as "not provided" — normalize so updating one field updates the other
+    const titleVal = typeof updates.title === 'string' ? updates.title.trim() : undefined;
+    const nameVal = typeof updates.name === 'string' ? updates.name.trim() : undefined;
+    if (titleVal && !nameVal) updates.name = updates.title;
+    if (nameVal && !titleVal) updates.title = updates.name;
+
+    let product = await Product.findByIdAndUpdate(id, updates, { new: true });
 
     if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
+    // If the client supplied either title or name in the update, make them consistent
+    // by writing the same chosen value into both fields so all clients see the same text.
+    const rawTitle = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+    const rawName = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+    const chosenName = rawTitle || rawName || null;
+    if (chosenName) {
+      product.title = chosenName;
+      product.name = chosenName;
+      await product.save();
+    }
+
+    // Return the (possibly normalized) product
+    product = await Product.findById(id);
     return res.status(200).json({ success: true, product });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
