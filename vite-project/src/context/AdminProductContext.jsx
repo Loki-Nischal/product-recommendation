@@ -116,6 +116,13 @@ export const AdminProductProvider = ({ children }) => {
         );
       });
 
+      // notify other parts of the app that products changed
+      try {
+        window.dispatchEvent(new CustomEvent("products-updated", { detail: updatedProduct }));
+      } catch (e) {
+        // ignore in non-browser environments
+      }
+
       return updatedProduct;
     } catch (err) {
       const msg = err.message || "Failed to update product";

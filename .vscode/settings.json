@@ -1,0 +1,7 @@
+{
+  "python.defaultInterpreterPath": "backend/recommendation-engine/venv/Scripts/python.exe",
+  "python.analysis.extraPaths": [
+    "backend/recommendation-engine/venv/Lib/site-packages"
+  ],
+  "python.terminal.activateEnvironment": true
+}

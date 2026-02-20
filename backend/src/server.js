@@ -10,6 +10,7 @@ import productRoutes from "./routes/productRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import recommendationRoutes from "./routes/recommendationRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
 import connectDB from "./config/db.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -35,6 +36,7 @@ app.use("/api/user", profileRoutes);
 app.use("/api/recommend", recommendationRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/orders", orderRoutes);
 
 const server = app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);

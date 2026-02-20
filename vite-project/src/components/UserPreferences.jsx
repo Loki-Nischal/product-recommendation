@@ -71,7 +71,7 @@ const UserPreferences = ({ preferences, setPreferences, products = [] }) => {
       {/* Price Range Section */}
       <div className="mb-4">
         <h3 className="font-semibold text-lg mb-3 text-gray-700">
-          Price Range: ${preferences.priceRange[0]} - ${preferences.priceRange[1]}
+          Price Range: Rs {preferences.priceRange[0]} - Rs {preferences.priceRange[1]}
         </h3>
         <input
           type="range"
@@ -86,8 +86,8 @@ const UserPreferences = ({ preferences, setPreferences, products = [] }) => {
           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
         />
         <div className="flex justify-between text-sm text-gray-600 mt-1">
-          <span>$0</span>
-          <span>$500</span>
+          <span>Rs 0</span>
+          <span>Rs 500</span>
         </div>
       </div>
 

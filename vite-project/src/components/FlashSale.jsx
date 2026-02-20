@@ -14,22 +14,35 @@ const FlashSale = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     const fetchProducts = async () => {
       try {
         const response = await api.get("/products");
-        // Response is { success: true, products: [...] }
         const fetchedProducts = response.products || [];
-        // Get first 6 products for flash sale
+        if (!mounted) return;
         setProducts(Array.isArray(fetchedProducts) ? fetchedProducts.slice(0, 6) : []);
       } catch (error) {
         console.error("Error fetching products:", error);
-        setProducts([]);
+        if (mounted) setProducts([]);
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     fetchProducts();
+
+    const handler = () => {
+      // on product update, re-fetch latest products
+      fetchProducts();
+    };
+
+    window.addEventListener("products-updated", handler);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("products-updated", handler);
+    };
   }, []);
 
   const settings = {
@@ -112,7 +125,7 @@ const FlashSale = () => {
 
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-bold text-red-600">
-                      $ {p.price}
+                      Rs {p.price}
                     </span>
                   </div>
 

@@ -1,5 +1,4 @@
 import Sidebar from "../../components/Admin/Sidebar";
-import AdminHeader from "../../components/Admin/AdminHeader";
 import { useState } from "react";
 import { useAdminProducts } from "../../context/AdminProductContext";
 import { useNavigate } from "react-router-dom";
@@ -91,8 +90,6 @@ const AddProduct = () => {
       <Sidebar />
 
       <div className="flex-1">
-        <AdminHeader />
-
         <div className="p-6 max-w-2xl">
           <h1 className="text-3xl font-bold mb-6">Add New Product</h1>
 
@@ -251,14 +248,14 @@ const AddProduct = () => {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full py-3 rounded-lg font-semibold text-white transition ${
+              className={`w-full py-3 rounded-xl font-semibold text-white transition transform focus:outline-none focus:ring-4 focus:ring-blue-200 ${
                 loading
                   ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700"
+                  : "bg-linear-to-r from-blue-600 to-indigo-500 hover:from-blue-700 hover:to-indigo-600 shadow-lg hover:-translate-y-0.5"
               }`}
             >
               {loading ? "Adding..." : "Add Product"}
-            </button>     
+            </button>
           </form>
         </div>
       </div>

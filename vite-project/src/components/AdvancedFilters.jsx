@@ -77,8 +77,8 @@ const AdvancedFilters = ({ filters, onFiltersChange, products }) => {
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
               />
               <div className="flex justify-between text-sm text-gray-600 mt-1">
-                <span>$0</span>
-                <span>${filters.priceRange[1]}</span>
+                <span>Rs 0</span>
+                <span>Rs {filters.priceRange[1]}</span>
               </div>
             </div>
 

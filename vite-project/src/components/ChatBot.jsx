@@ -139,7 +139,7 @@ const ChatBot = () => {
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-indigo-600 font-bold text-xs">
-                              ₹{p.price?.toLocaleString()}
+                              Rs {p.price?.toLocaleString()}
                             </span>
                             {p.rating && (
                               <span className="text-yellow-500 text-xs">

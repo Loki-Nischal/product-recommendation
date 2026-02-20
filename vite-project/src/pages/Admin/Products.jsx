@@ -1,6 +1,5 @@
 import React, { useState,useEffect} from "react";
 import Sidebar from "../../components/Admin/Sidebar";
-import AdminHeader from "../../components/Admin/AdminHeader";
 import { useAdminProducts } from "../../context/AdminProductContext";
 import { useNavigate } from "react-router-dom";
 import { Trash2, Plus } from "lucide-react";
@@ -34,16 +33,14 @@ const Products = () => {
     <div className="flex">
       <Sidebar />
       <div className="flex-1">
-        <AdminHeader />
-
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold">Manage Products</h1>
             <button
               onClick={() => navigate("/admin/add-product")}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-linear-to-r from-blue-600 to-indigo-500 text-white shadow-md hover:from-blue-700 hover:to-indigo-600 transform hover:-translate-y-0.5 transition"
             >
-              <Plus size={20} />
+              <Plus size={18} />
               Add New Product
             </button>
           </div>
@@ -64,7 +61,7 @@ const Products = () => {
               <p className="text-gray-500 text-lg">No products yet.</p>
               <button
                 onClick={() => navigate("/admin/add-product")}
-                className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                className="mt-4 px-6 py-2 rounded-full bg-linear-to-r from-blue-600 to-indigo-500 text-white shadow-md hover:from-blue-700 hover:to-indigo-600 transition"
               >
                 Add Your First Product
               </button>
@@ -94,7 +91,7 @@ const Products = () => {
                             onError={(e) => (e.target.src = "https://via.placeholder.com/40?text=No+Image")}
                           />
                           <div className="flex flex-col">
-                            <span className="font-medium text-gray-800">{p.name || p.title}</span>
+                            <span className="font-medium text-gray-800">{p.title || p.name}</span>
                             <span className="text-xs text-gray-500">{p.brand || "No Brand"}</span>
                           </div>
                         </div>
@@ -121,18 +118,27 @@ const Products = () => {
                         </div>
                       </td>
                       <td className="p-4 text-center">
-                        <button
-                          onClick={() => handleDelete(p._id || p.id)}
-                          disabled={deleting === p._id || deleting === p.id}
-                          className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg transition ${
-                            deleting === p._id || deleting === p.id
-                              ? "bg-gray-300 cursor-not-allowed"
-                              : "bg-red-500 text-white hover:bg-red-600"
-                          }`}
-                        >
-                          <Trash2 size={16} />
-                          {deleting === p._id || deleting === p.id ? "Deleting..." : "Delete"}
-                        </button>
+                        <div className="inline-flex items-center gap-3">
+                          <button
+                            onClick={() => navigate(`/admin/edit-product/${p._id || p.id}`)}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-white font-medium transition bg-blue-600 hover:bg-blue-700 shadow-sm"
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(p._id || p.id)}
+                            disabled={deleting === p._id || deleting === p.id}
+                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-white font-medium transition ${
+                              deleting === p._id || deleting === p.id
+                                ? "bg-gray-300 cursor-not-allowed"
+                                : "bg-red-500 hover:bg-red-600 shadow-sm"
+                            }`}
+                          >
+                            <Trash2 size={16} />
+                            {deleting === p._id || deleting === p.id ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

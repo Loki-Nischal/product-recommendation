@@ -12,6 +12,11 @@ const productSchema = new mongoose.Schema(
     rating: { type: Number, default: 4 },
     stock: { type: Number, default: 10 },
     tags: { type: [String], default: [] },
+    views: { type: Number, default: 0 },
+    // Promotion fields
+    isOnSale: { type: Boolean, default: false },
+    discountEndTime: { type: Date, default: null },
+    promotionScore: { type: Number, default: 0 },
     embedding: { type: [Number], index: '2dsphere' }
   },
   { timestamps: true }

@@ -45,7 +45,7 @@ const AdminDashboard = () => {
 
           <div className="p-6 bg-white shadow-lg rounded-lg">
             <h2 className="text-xl font-bold">Revenue</h2>
-            <p className="text-3xl font-bold mt-2">$12,400</p>
+            <p className="text-3xl font-bold mt-2">Rs 12,400</p>
           </div>
         </div>
 

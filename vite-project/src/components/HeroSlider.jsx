@@ -1,5 +1,6 @@
 import React from "react";
 import Slider from "react-slick";
+import { Link } from "react-router-dom";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
@@ -8,60 +9,67 @@ import banner2 from "/image/banner2.jpeg";
 import banner3 from "/image/banner3.jpeg";
 import banner4 from "/image/banner4.jpeg";
 
-const HeroSlider = () => {
-  const sliderImages = [banner1, banner2, banner3, banner4];
+const slides = [
+  { img: banner1, tag: "New Arrivals", title: "Discover Amazing\nProducts", sub: "AI-powered picks just for you", cta: "Shop Now", ctaLink: "#all-products", color: "from-blue-900/70" },
+  { img: banner2, tag: "Flash Deals", title: "Unbeatable Prices\nEvery Day", sub: "Limited-time offers you can't miss", cta: "View Deals", ctaLink: "#flash", color: "from-orange-900/70" },
+  { img: banner3, tag: "Trending", title: "What Everyone\nIs Buying", sub: "Top-rated products loved by thousands", cta: "Explore Now", ctaLink: "#trending", color: "from-purple-900/70" },
+  { img: banner4, tag: "Best Value", title: "Premium Quality\nGreat Prices", sub: "Curated picks at the best value", cta: "Browse All", ctaLink: "#all-products", color: "from-teal-900/70" },
+];
 
+const Arrow = ({ className, style, onClick, dir }) => (
+  <button
+    className={`${className} !flex items-center justify-center !w-10 !h-10 rounded-full bg-white/20 hover:bg-white/40 backdrop-blur-sm border border-white/30 text-white transition z-10`}
+    style={{ ...style, display: "flex", [dir === "prev" ? "left" : "right"]: "16px" }}
+    onClick={onClick}
+  >
+    {dir === "prev" ? "‹" : "›"}
+  </button>
+);
+
+const HeroSlider = () => {
   const settings = {
     dots: true,
     infinite: true,
-    speed: 600,
+    speed: 700,
     slidesToShow: 1,
     slidesToScroll: 1,
     autoplay: true,
-    autoplaySpeed: 2500,
-    arrows: true,
+    autoplaySpeed: 4000,
+    prevArrow: <Arrow dir="prev" />,
+    nextArrow: <Arrow dir="next" />,
+    dotsClass: "slick-dots !bottom-4",
   };
 
   return (
-    <section className="w-full bg-gray-100 py-12">
-      <div className="container mx-auto flex flex-col md:flex-row items-center gap-6">
-        
-        {/* Left Content */}
-        <div className="md:w-[70%] flex flex-col justify-center space-y-6 px-4">
-          <h1 className="text-4xl md:text-5xl font-bold text-blue-700">
-            Discover Amazing Products
-          </h1>
-          <p className="text-gray-700 text-lg">
-            AI-powered recommendations, personalized for you. Shop the best products effortlessly.
-          </p>
-          <div className="flex gap-4">
-            <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors">
-              Shop Now
-            </button>
-            <button className="border border-blue-600 text-blue-600 px-6 py-3 rounded-lg hover:bg-blue-100 transition-colors">
-              Explore Deals
-            </button>
-          </div>
-        </div>
-
-        {/* Right Slider */}
-        <div className="md:w-[30%] ">
-          <Slider {...settings} className="forced-color-adjust-auto ">
-            {sliderImages.map((src, index) => (
-              <div key={index}>
-                <img
-                  src={src}
-                  alt={`Banner ${index + 1}`}
-                  className="w-full h-[200px] md:h-[200px] object-cover rounded-lg"
-                />
+    <section className="w-full overflow-hidden">
+      <Slider {...settings}>
+        {slides.map((s, i) => (
+          <div key={i} className="relative">
+            <div className="relative h-[320px] sm:h-[420px] md:h-[500px] w-full">
+              <img src={s.img} alt={s.title} className="w-full h-full object-cover" />
+              <div className={`absolute inset-0 bg-gradient-to-r ${s.color} to-transparent`} />
+              <div className="absolute inset-0 flex flex-col justify-center px-8 sm:px-16 md:px-24">
+                <span className="inline-block bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full mb-3 w-fit border border-white/30">
+                  {s.tag}
+                </span>
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white leading-tight mb-3 whitespace-pre-line drop-shadow-lg">
+                  {s.title}
+                </h1>
+                <p className="text-white/80 text-sm sm:text-base mb-6 max-w-sm">{s.sub}</p>
+                <a
+                  href={s.ctaLink}
+                  className="inline-flex items-center gap-2 bg-white text-gray-900 font-bold px-6 py-3 rounded-full hover:bg-gray-100 transition shadow-lg w-fit text-sm sm:text-base"
+                >
+                  {s.cta} <span>→</span>
+                </a>
               </div>
-            ))}
-          </Slider>
-        </div>
-
-      </div>
+            </div>
+          </div>
+        ))}
+      </Slider>
     </section>
   );
 };
 
 export default HeroSlider;
+

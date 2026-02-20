@@ -4,9 +4,22 @@ const API = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api",
 });
 
-// Attach token to every request
+const USER_TOKEN_KEY = "token";
+const USER_KEY = "user";
+const ADMIN_TOKEN_KEY = "adminToken";
+const ADMIN_USER_KEY = "adminUser";
+
+const isAdminRequest = (url = "") => {
+  const normalized = String(url || "").replace(/^\/+/, "");
+  // Check if URL starts with admin/ OR contains /admin/
+  return normalized.startsWith("admin/") || normalized.includes("/admin/");
+};
+
+// Attach correct token to every request
 API.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = isAdminRequest(config?.url)
+    ? localStorage.getItem(ADMIN_TOKEN_KEY)
+    : localStorage.getItem(USER_TOKEN_KEY);
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -14,32 +27,34 @@ API.interceptors.request.use((config) => {
 // Handle response - return data directly
 API.interceptors.response.use(
   (response) => {
-    // Return the response data (the actual API response)
     return response.data;
   },
   (error) => {
-    // Normalize error shape and handle auth failures globally
     try {
       const status = error.response?.status;
       const payload = error.response?.data;
-      // Log a structured error so developer can see full details
       console.error('API Error:', {
         message: error.message,
         status,
         data: payload,
-        headers: error.response?.headers,
         config: error.config,
       });
 
       const message = payload?.message || payload?.error || error.message || 'API Error';
 
-      // If unauthorized, clear session and force login
       if (status === 401) {
         try {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          // Redirect to login page to re-authenticate
-          window.location.href = '/login';
+          const adminReq = isAdminRequest(error?.config?.url);
+          if (adminReq) {
+            localStorage.removeItem(ADMIN_TOKEN_KEY);
+            localStorage.removeItem(ADMIN_USER_KEY);
+            localStorage.removeItem('admin');
+            window.location.href = '/admin/login';
+          } else {
+            localStorage.removeItem(USER_TOKEN_KEY);
+            localStorage.removeItem(USER_KEY);
+            window.location.href = '/login';
+          }
         } catch (e) {
           // ignore
         }
@@ -47,7 +62,6 @@ API.interceptors.response.use(
 
       return Promise.reject({ message, status, data: payload });
     } catch (logErr) {
-      // If logging itself fails, fallback to generic rejection
       console.error('API Error (logging failed):', logErr, error);
       return Promise.reject({ message: error.message || 'API Error' });
     }

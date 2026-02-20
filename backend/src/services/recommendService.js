@@ -2,7 +2,7 @@
 
 import LRU from 'lru-cache';
 import Product from '../models/productModel.js';
-import { recommendProducts as aiRecommend } from '../../ai/recommendationEngine.js';
+import { recommendProducts as aiRecommend } from '../ai/recommendationEngine.js';
 import logger from '../utils/logger.js'; // ← add simple winston/pino logger if missing
 
 // Cache per-user + context, longer TTL for anon, shorter for logged-in

@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Star, Heart, ShoppingCart, Eye, Zap, Clock } from 'lucide-react';
+import api from "../api/api";
+import { notifyProfileSaved } from '../utils/profileToast';
 
 const ProductCard = ({ 
   product, 
@@ -9,13 +12,115 @@ const ProductCard = ({
   isRecommended = false,
   explanation = []
 }) => {
-  const [isLiked, setIsLiked] = useState(false);
+  const navigate = useNavigate();
+  const [isLiked, setIsLiked] = useState(() => {
+    try {
+      const id = product?._id || product?.id;
+      if (!id) return false;
+      const raw = localStorage.getItem('likedProductIds');
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) && parsed.includes(id);
+    } catch (e) {
+      return false;
+    }
+  });
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    onLike(product);
+  // If local cache is missing or empty, try to seed it from server so likes persist after refresh.
+  React.useEffect(() => {
+    let mounted = true;
+    const seed = async () => {
+      try {
+        const raw = localStorage.getItem('likedProductIds');
+        // if key exists and has values, don't fetch
+        if (raw && raw !== '[]') return;
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const res = await api.get('/user/profile');
+        if (!mounted) return;
+        if (res && res.success && res.data) {
+          const liked = Array.isArray(res.data.likedProducts)
+            ? res.data.likedProducts.map((p) => p._id || p.id).filter(Boolean)
+            : [];
+          try {
+            localStorage.setItem('likedProductIds', JSON.stringify(liked));
+          } catch (e) {}
+          const id = product?._id || product?.id;
+          if (id && liked.includes(id)) setIsLiked(true);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    seed();
+    return () => { mounted = false; };
+  }, [product]);
+
+  const handleLike = async () => {
+    const id = product._id || product.id;
+    if (!id) return;
+
+    const nextLiked = !isLiked;
+    setIsLiked(nextLiked);
+
+    try {
+      const raw = localStorage.getItem('likedProductIds');
+      const arr = raw ? JSON.parse(raw) : [];
+      let next = Array.isArray(arr) ? [...arr] : [];
+      if (nextLiked) {
+        if (!next.includes(id)) next.unshift(id);
+      } else {
+        next = next.filter((x) => x !== id);
+      }
+      // cap to 100 ids
+      if (next.length > 100) next = next.slice(0, 100);
+      localStorage.setItem('likedProductIds', JSON.stringify(next));
+    } catch (e) {
+      // ignore localStorage errors
+    }
+
+    // call parent handler if provided, otherwise persist directly
+    try {
+      if (typeof onLike === 'function') {
+        const res = onLike(product);
+        if (res && typeof res.then === 'function') {
+          await res;
+        }
+      } else {
+        // fallback: call API directly so likes persist even when parent doesn't pass handler
+        await api.post(`/user/like/${id}`);
+        notifyProfileSaved('Like saved to profile');
+      }
+    } catch (err) {
+      console.error('Failed to persist like:', err);
+      setIsLiked(!nextLiked);
+      try {
+        // revert localStorage change
+        const raw = localStorage.getItem('likedProductIds');
+        const arr = raw ? JSON.parse(raw) : [];
+        const ids = Array.isArray(arr) ? arr.filter((x) => x !== id) : [];
+        localStorage.setItem('likedProductIds', JSON.stringify(ids));
+      } catch (e) {}
+      // surface a friendly message
+      try { alert('Failed to update like. Please try again.'); } catch (e) {}
+    }
+  };
+
+  const recordView = async (prod) => {
+    try {
+      if (!prod) return;
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      const id = prod._id || prod.id;
+      if (!id) return;
+      await api.post(`/user/view/${id}`);
+      notifyProfileSaved('View saved to profile');
+    } catch (err) {
+      console.debug("Failed to record product view:", err?.message || err);
+    }
   };
 
   const getBadge = () => {
@@ -30,7 +135,7 @@ const ProductCard = ({
   return (
     <div className={`bg-white rounded-xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl transform hover:-translate-y-1 ${
       isRecommended ? 'border-2 border-blue-500 relative' : 'border border-gray-200'
-    }`}>
+    } flex flex-col h-full`}> 
       {/* Recommendation Crown */}
       {isRecommended && (
         <div className="absolute top-2 left-2 bg-linear-to-r from-blue-500 to-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold z-10 flex items-center gap-1">
@@ -40,7 +145,7 @@ const ProductCard = ({
       )}
 
       {/* Product Image */}
-      <div className="relative h-48 bg-gray-100">
+      <div className="relative bg-gray-100 sm:h-48 h-44">
         {!imageLoaded && !imageError && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -76,31 +181,64 @@ const ProductCard = ({
           </button>
         </div>
 
-        {/* Quick Actions Overlay */}
+        {/* Quick Actions Overlay (full buttons with icon + label) */}
         <div className="absolute bottom-2 left-2 right-2 opacity-0 hover:opacity-100 transition-opacity duration-300">
           <div className="flex gap-2 justify-center">
-            <button 
-              onClick={() => onView(product)}
-              className="bg-black bg-opacity-70 text-white p-2 rounded-full hover:bg-opacity-90 transition-all"
+            <button
+              onClick={async () => {
+                try {
+                  await recordView(product);
+                  if (typeof onView === 'function') onView(product);
+                } catch (err) {
+                  console.error('onView quick action failed', err);
+                }
+              }}
+              className="flex-1 min-w-0 bg-white bg-opacity-90 text-gray-800 py-2 px-3 rounded-lg flex items-center justify-center gap-2 hover:bg-opacity-100 transition text-sm font-medium"
             >
               <Eye size={16} />
+              <span className="truncate">View</span>
             </button>
-            <button 
-              onClick={() => onAddToCart(product)}
-              className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-all"
+
+            <button
+              onClick={async () => {
+                if (isAdding || product.stock === 0) return;
+                try {
+                  setIsAdding(true);
+                  const res = onAddToCart && onAddToCart(product);
+                  if (res && typeof res.then === 'function') await res;
+                } catch (err) {
+                  console.error('Add to cart quick action failed', err);
+                } finally {
+                  setIsAdding(false);
+                }
+              }}
+              disabled={isAdding || product.stock === 0}
+              className={`flex-1 min-w-0 py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-sm font-medium ${
+                product.stock === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : isAdding ? 'bg-blue-400 text-white cursor-wait' : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
             >
-              <ShoppingCart size={16} />
+              {isAdding ? (
+                <>
+                  <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span className="truncate">Adding…</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingCart size={16} />
+                  <span className="truncate">Add</span>
+                </>
+              )}
             </button>
           </div>
         </div>
       </div>
 
       {/* Product Info */}
-      <div className="p-4">
+      <div className="p-4 flex-1 flex flex-col">
         <div className="flex justify-between items-start mb-2">
-          <h3 className="font-bold text-lg text-gray-800 line-clamp-2 flex-1 mr-2">{product.name || product.title}</h3>
+          <h3 className="font-bold text-lg text-gray-800 line-clamp-2 flex-1 mr-2 break-words">{product.name || product.title}</h3>
           <div className="text-right">
-            <span className="font-bold text-green-600 text-lg">$ {(product.price || 0).toFixed(2)}</span>
+            <span className="font-bold text-green-600 text-lg">Rs {(product.price || 0).toFixed(2)}</span>
           </div>
         </div>
 
@@ -144,7 +282,7 @@ const ProductCard = ({
         )}
 
         {/* Match Score for Recommendations */}
-        {product.matchScore && (
+        {product.matchScore > 0 && (
           <div className="mb-3">
             <div className="flex justify-between text-sm mb-1">
               <span className="text-gray-600">Personalized Match:</span>
@@ -188,25 +326,60 @@ const ProductCard = ({
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-nowrap mt-auto">
           <button 
-            onClick={() => onView(product)}
-            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm font-medium"
+            onClick={async (e) => {
+              // record view then call optional analytics/view handler
+              try {
+                await recordView(product);
+              } catch (err) {
+                console.debug('recordView failed', err);
+              }
+              try {
+                if (typeof onView === 'function') onView(product);
+              } catch (err) {
+                console.error('onView handler failed', err);
+              }
+              // always navigate to product details
+              const id = product._id || product.id;
+              if (id) navigate(`/product/${id}`);
+            }}
+            className="flex-1 min-w-0 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm font-medium"
           >
             <Eye size={16} />
             Details
           </button>
           <button 
-            onClick={() => onAddToCart(product)}
-            disabled={product.stock === 0}
-            className={`flex-1 py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm font-medium ${
+            onClick={async () => {
+              if (isAdding || product.stock === 0) return;
+              try {
+                setIsAdding(true);
+                const res = onAddToCart && onAddToCart(product);
+                if (res && typeof res.then === 'function') await res;
+              } catch (err) {
+                console.error('Add to cart failed', err);
+              } finally {
+                setIsAdding(false);
+              }
+            }}
+            disabled={product.stock === 0 || isAdding}
+            className={`flex-1 min-w-0 py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm font-medium ${
               product.stock === 0 
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                : 'bg-blue-500 hover:bg-blue-600 text-white'
+                : isAdding ? 'bg-blue-400 text-white opacity-90 cursor-wait' : 'bg-blue-500 hover:bg-blue-600 text-white'
             }`}
           >
-            <ShoppingCart size={16} />
-            {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+            {isAdding ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span className="truncate">Adding…</span>
+              </>
+            ) : (
+              <>
+                <ShoppingCart size={16} />
+                <span className="truncate">{product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}</span>
+              </>
+            )}
           </button>
         </div>
       </div>

@@ -35,8 +35,13 @@ const Login = () => {
         throw new Error(payload?.message || "Invalid login response from server");
       }
 
-      login(token, user);
-      navigate(user.role === "admin" ? "/admin/dashboard" : "/productdetails");
+      const ok = login(token, user);
+      if (ok === false) {
+        alert("Login failed: token mismatch. Please try again.");
+        return;
+      }
+
+      navigate(user.role === "admin" ? "/admin/dashboard" : "/profile");
     } catch (err) {
       console.error("LOGIN ERROR:", err);
       // Normalize different error shapes (string, Error, or server payload)
@@ -85,6 +90,15 @@ const Login = () => {
           <button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-semibold">
             {loading ? "Logging in..." : "Login"}
           </button>
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => navigate("/admin/login")}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              Login as Admin
+            </button>
+          </div>
         </form>
       </div>
     </div>

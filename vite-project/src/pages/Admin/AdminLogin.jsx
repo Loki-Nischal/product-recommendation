@@ -1,18 +1,56 @@
 import { useState } from "react";
 import { useAdmin } from "../../context/AdminAuthContext";
 import { useNavigate } from "react-router-dom";
+import API from "../../api/api";
+
+function parseJwt(token) {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(json);
+  } catch (e) {
+    return null;
+  }
+}
+
+const ADMIN_TOKEN_KEY = 'adminToken';
+const ADMIN_USER_KEY = 'adminUser';
 
 const AdminLogin = () => {
-  const { login } = useAdmin();
+  const { login, registerAdminSession } = useAdmin();
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const success = login(form.email, form.password);
-    if (success) navigate("/admin/dashboard");
-    else setError("Invalid admin credentials");
+    setError("");
+    try {
+      const res = await API.post('/admin/login', { email: form.email, password: form.password });
+      const token = res?.token;
+      const user = res?.user;
+      if (!token || !user || user.role !== 'admin') {
+        setError('Invalid admin credentials');
+        return;
+      }
+
+      // Persist admin auth in DEDICATED keys only (never in shared token/user)
+      localStorage.setItem(ADMIN_TOKEN_KEY, token);
+      localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(user));
+
+      // Register admin session in context (schedules auto-logout)
+      const payload = parseJwt(token);
+      const expiry = payload?.exp ? payload.exp * 1000 : Date.now() + 8 * 3600 * 1000;
+      const adminData = { email: user.email, expiry, token };
+      registerAdminSession(adminData);
+
+      // navigate after storing
+      navigate('/admin/dashboard');
+    } catch (err) {
+      console.error('Admin login failed', err);
+      setError(err?.message || 'Login failed');
+    }
   };
 
   return (

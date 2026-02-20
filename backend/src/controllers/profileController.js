@@ -134,6 +134,100 @@ export const recordSearch = async (req, res) => {
   }
 };
 
+// POST /api/user/purchase/:productId
+export const purchaseProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    const exists = user.purchasedProducts.find((p) => p.toString() === productId);
+    if (!exists) {
+      user.purchasedProducts.unshift(productId);
+      if (user.purchasedProducts.length > 100) {
+        user.purchasedProducts = user.purchasedProducts.slice(0, 100);
+      }
+    }
+
+    // If product exists in cart, remove it after purchase
+    user.cartProducts = (user.cartProducts || []).filter((p) => p.toString() !== productId);
+
+    user.interactionScore = (user.interactionScore || 0) + 2;
+    await user.save();
+
+    res.json({ success: true, data: user.purchasedProducts });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// POST /api/user/cart/:productId
+export const addToCart = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    // Check product exists and is in stock
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+    if (product.stock <= 0) {
+      return res.status(400).json({ success: false, message: "Product is out of stock" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    // avoid duplicates
+    const exists = user.cartProducts.find((p) => p.toString() === productId);
+    if (!exists) {
+      user.cartProducts.unshift(productId);
+      if (user.cartProducts.length > 100) user.cartProducts = user.cartProducts.slice(0, 100);
+    }
+
+    await user.save();
+
+    res.json({ success: true, data: user.cartProducts });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// DELETE /api/user/cart/:productId
+export const removeFromCart = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    console.log('Removing product from cart:', productId);
+    console.log('Cart before:', user.cartProducts.map(p => p.toString()));
+
+    const beforeLength = user.cartProducts.length;
+    user.cartProducts = (user.cartProducts || []).filter((p) => {
+      const pId = p.toString();
+      const matches = pId === productId;
+      console.log(`Comparing ${pId} with ${productId}: ${matches ? 'REMOVE' : 'KEEP'}`);
+      return !matches; // keep items that don't match
+    });
+
+    console.log('Cart after:', user.cartProducts.map(p => p.toString()));
+    console.log(`Removed ${beforeLength - user.cartProducts.length} items`);
+
+    await user.save();
+    console.log('Cart saved successfully');
+
+    res.json({ success: true, data: user.cartProducts });
+  } catch (err) {
+    console.error('Error removing from cart:', err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 // GET /api/user/history
 export const getHistory = async (req, res) => {
   try {
@@ -144,6 +238,24 @@ export const getHistory = async (req, res) => {
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     res.json({ success: true, data: user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// POST /api/user/search/clear
+export const clearSearchHistory = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    user.searchHistory = [];
+    user.lastSearchQueries = [];
+
+    await user.save();
+
+    res.json({ success: true, data: { searchHistory: user.searchHistory, lastSearchQueries: user.lastSearchQueries } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "Server error" });

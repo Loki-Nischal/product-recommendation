@@ -124,10 +124,11 @@ export const getPersonalizedRecommendations = async (req, res) => {
         const q = (req.query.q || "").trim();
         const queryEmbedding = q ? await generateEmbedding(q) : null;
 
+        // Helper: try to resolve a logged-in user from req.user or Bearer token
         const readTokenUser = async () => {
             if (req.user?._id) {
                 return User.findById(req.user._id)
-                    .populate("likedProducts viewedProducts")
+                    .populate("likedProducts viewedProducts purchasedProducts")
                     .lean();
             }
 
@@ -135,12 +136,15 @@ export const getPersonalizedRecommendations = async (req, res) => {
             if (!auth || !auth.startsWith("Bearer ")) return null;
 
             const token = auth.split(" ")[1];
-            const decoded = jwt.verify(token, JWT_SECRET);
-            if (!decoded?.id) return null;
-
-            return User.findById(decoded.id)
-                .populate("likedProducts viewedProducts")
-                .lean();
+            try {
+                const decoded = jwt.verify(token, JWT_SECRET);
+                if (!decoded?.id) return null;
+                return User.findById(decoded.id)
+                    .populate("likedProducts viewedProducts purchasedProducts")
+                    .lean();
+            } catch {
+                return null;
+            }
         };
 
         let user = null;
@@ -149,6 +153,11 @@ export const getPersonalizedRecommendations = async (req, res) => {
         } catch {
             user = null;
         }
+
+        // Guest views fallback: accept comma-separated product ids in `views` query param
+        // Example: /recommend/personalized?views=603...,604...&q=
+        const guestViewsParam = (req.query.views || "").trim();
+        const guestViewedIds = guestViewsParam ? guestViewsParam.split(",").map(s => s.trim()).filter(Boolean) : [];
 
         const averageVectors = (vectors) => {
             const valid = vectors.filter((v) => Array.isArray(v) && v.length > 0);
@@ -165,37 +174,78 @@ export const getPersonalizedRecommendations = async (req, res) => {
             return sum.map((x) => x / sameDim.length);
         };
 
-        const buildUserInterestVector = async (u) => {
-            if (!u) return null;
+        /**
+         * Determine whether a user has any interaction history.
+         * Cold-start = no viewed/liked/purchased products AND no search history.
+         * A user who has only searched (but never clicked a product) still gets
+         * behavior scoring derived from those query embeddings.
+         */
+        const isColdStart = (u, guestIds = []) => {
+            if (Array.isArray(guestIds) && guestIds.length > 0) return false;
+            if (!u) return true;
+            const hasViewed = Array.isArray(u.viewedProducts) && u.viewedProducts.length > 0;
+            const hasLiked = Array.isArray(u.likedProducts) && u.likedProducts.length > 0;
+            const hasPurchased = Array.isArray(u.purchasedProducts) && u.purchasedProducts.length > 0;
+            const hasSearched = Array.isArray(u.lastSearchQueries) && u.lastSearchQueries.length > 0;
+            return !hasViewed && !hasLiked && !hasPurchased && !hasSearched;
+        };
 
+        const buildUserInterestVector = async (u, guestIds = []) => {
+            // u may be a full user object from DB (with populated liked/viewed/purchased arrays),
+            // or null for guests. guestIds is an array of product ids from query param.
             const vectors = [];
-            const liked = Array.isArray(u.likedProducts) ? u.likedProducts : [];
-            const viewed = Array.isArray(u.viewedProducts) ? u.viewedProducts : [];
 
-            for (const p of [...liked, ...viewed]) {
-                if (Array.isArray(p?.embedding) && p.embedding.length > 0) vectors.push(p.embedding);
+            if (u) {
+                // Item-based collaborative filtering:
+                // Collect embeddings from all three interaction signals.
+                // Viewed products receive base weight (1x), liked products signal
+                // stronger intent (counted once here — extend weights if needed),
+                // and purchased products represent the strongest purchase intent.
+                const viewed = Array.isArray(u.viewedProducts) ? u.viewedProducts : [];
+                const liked = Array.isArray(u.likedProducts) ? u.likedProducts : [];
+                const purchased = Array.isArray(u.purchasedProducts) ? u.purchasedProducts : [];
+
+                for (const p of [...viewed, ...liked, ...purchased]) {
+                    if (Array.isArray(p?.embedding) && p.embedding.length > 0) vectors.push(p.embedding);
+                }
+
+                const queries = Array.isArray(u.lastSearchQueries) ? u.lastSearchQueries.slice(0, 10) : [];
+                if (queries.length > 0) {
+                    const queryEmbeddings = await Promise.all(
+                        queries.map(async (text) => {
+                            try {
+                                return await generateEmbedding(text);
+                            } catch {
+                                return null;
+                            }
+                        })
+                    );
+                    for (const emb of queryEmbeddings) {
+                        if (Array.isArray(emb) && emb.length > 0) vectors.push(emb);
+                    }
+                }
             }
 
-            const queries = Array.isArray(u.lastSearchQueries) ? u.lastSearchQueries.slice(0, 10) : [];
-            if (queries.length > 0) {
-                const queryEmbeddings = await Promise.all(
-                    queries.map(async (text) => {
-                        try {
-                            return await generateEmbedding(text);
-                        } catch {
-                            return null;
-                        }
-                    })
-                );
-                for (const emb of queryEmbeddings) {
-                    if (Array.isArray(emb) && emb.length > 0) vectors.push(emb);
+            // If guestIds provided (from cookie/localStorage passed by frontend), include their product embeddings
+            if (Array.isArray(guestIds) && guestIds.length > 0) {
+                try {
+                    const prods = await Product.find({ _id: { $in: guestIds } }).select('embedding').lean();
+                    for (const p of prods) {
+                        if (Array.isArray(p?.embedding) && p.embedding.length > 0) vectors.push(p.embedding);
+                    }
+                } catch (e) {
+                    // ignore product fetch errors for guest ids
                 }
             }
 
             return averageVectors(vectors);
         };
 
-        const userInterestVector = await buildUserInterestVector(user);
+        // Detect cold-start before building the interest vector to avoid wasted work
+        const coldStart = isColdStart(user, guestViewedIds);
+        const userInterestVector = coldStart
+            ? null
+            : await buildUserInterestVector(user, guestViewedIds);
 
         const products = await Product.find({ embedding: { $exists: true, $ne: [] } }).lean();
         if (products.length === 0) {
@@ -214,38 +264,86 @@ export const getPersonalizedRecommendations = async (req, res) => {
             const semanticScore = Array.isArray(queryEmbedding)
                 ? cosineSimilarity(queryEmbedding, product.embedding || [])
                 : 0;
-            const behaviorScore = Array.isArray(userInterestVector)
+            // behaviorScore is only meaningful for returning users with interaction history
+            const behaviorScore = !coldStart && Array.isArray(userInterestVector)
                 ? cosineSimilarity(userInterestVector, product.embedding || [])
-                : 0;
+                : null;
             const popularityScore = Number(product.views || 0);
+
+            // Promotion raw score: combine explicit promotionScore, sale flag, and time-left signal
+            const now = Date.now();
+            let timeLeftRatio = 0;
+            if (product.discountEndTime) {
+                const end = new Date(product.discountEndTime).getTime();
+                // normalize time left over a 7-day window (caps at 1)
+                const maxWindow = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+                timeLeftRatio = Math.max(0, Math.min(1, (end - now) / maxWindow));
+            }
+            const promotionRaw = (Number(product.promotionScore || 0) || 0) + (product.isOnSale ? 1 : 0) + timeLeftRatio;
 
             return { product, semanticScore, behaviorScore, popularityScore };
         });
 
         const semanticNormalized = toMinMax(scored.map((item) => item.semanticScore));
-        const behaviorNormalized = toMinMax(scored.map((item) => item.behaviorScore));
         const popularityNormalized = toMinMax(scored.map((item) => item.popularityScore));
+        // Compute promotionNormalized per product
+        const promotionValues = scored.map((item) => {
+            const p = item.product;
+            const now = Date.now();
+            let timeLeftRatio = 0;
+            if (p.discountEndTime) {
+                const end = new Date(p.discountEndTime).getTime();
+                const maxWindow = 7 * 24 * 60 * 60 * 1000;
+                timeLeftRatio = Math.max(0, Math.min(1, (end - now) / maxWindow));
+            }
+            return (Number(p.promotionScore || 0) || 0) + (p.isOnSale ? 1 : 0) + timeLeftRatio;
+        });
+        const promotionNormalized = toMinMax(promotionValues);
+
+        // Only normalize behavior scores when we have real interaction data
+        const behaviorNormalized = coldStart
+            ? null
+            : toMinMax(scored.map((item) => item.behaviorScore ?? 0));
 
         const ranked = scored
             .map((item, idx) => {
-                const finalScore =
-                    0.6 * (semanticNormalized[idx] || 0) +
-                    0.3 * (behaviorNormalized[idx] || 0) +
-                    0.1 * (popularityNormalized[idx] || 0);
+                let finalScore;
+
+                if (coldStart || behaviorNormalized === null) {
+                    // Cold-start: prioritize semantic but allow promotion and popularity to influence
+                    // Weights: semantic = 0.8, promotion = 0.1, popularity = 0.1
+                    finalScore =
+                        0.8 * (semanticNormalized[idx] || 0) +
+                        0.1 * (promotionNormalized[idx] || 0) +
+                        0.1 * (popularityNormalized[idx] || 0);
+                } else {
+                    // Returning user with interaction history: include promotion boost
+                    // Weights: semantic = 0.55, behavior = 0.2, promotion = 0.15, popularity = 0.1
+                    finalScore =
+                        0.55 * (semanticNormalized[idx] || 0) +
+                        0.2 * (behaviorNormalized[idx] || 0) +
+                        0.15 * (promotionNormalized[idx] || 0) +
+                        0.1 * (popularityNormalized[idx] || 0);
+                }
 
                 return {
                     ...item.product,
                     semanticScore: item.semanticScore,
-                    behaviorScore: item.behaviorScore,
+                    behaviorScore: item.behaviorScore ?? 0,
                     popularityScore: item.popularityScore,
                     finalScore,
+                    coldStart,
                 };
             })
             .sort((a, b) => b.finalScore - a.finalScore)
             .slice(0, 10);
 
-        // fallback behavior: if no history/user vector, ranking is effectively semantic-only
-        return res.json({ success: true, personalized: true, products: ranked });
+        return res.json({
+            success: true,
+            personalized: true,
+            coldStart,
+            products: ranked,
+        });
     } catch (err) {
         console.error("personalized recommendation error:", err?.message || err);
         return res.status(500).json({ success: false, message: "Personalized recommendation failed" });

@@ -1,44 +1,151 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import api from "../api/api";
+import { notifyProfileSaved } from '../utils/profileToast';
 import { Loader } from "lucide-react";
 
 const ProductDetails = () => {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
-  const [allProducts, setAllProducts] = useState([]);
+  const [similarProducts, setSimilarProducts] = useState([]);
+  const [loadingSimilar, setLoadingSimilar] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+
     const fetchProducts = async () => {
       try {
-        setLoading(true);
-        const response = await api.get("/products");
-        // Response is { success: true, products: [...] }
-        const fetchedProducts = response.products || [];
-        const productsArray = Array.isArray(fetchedProducts) ? fetchedProducts : [];
-        
-        setAllProducts(productsArray);
+        if (mounted) setLoading(true);
+        // Fetch the single product by ID — this also increments its views counter
+        // so the popularity signal in the recommendation engine receives real data.
+        const response = await api.get(`/products/${id}`);
+        const foundProduct = response.product || null;
 
-        // Find the product by ID (handle both MongoDB ObjectId and regular id)
-        const foundProduct = productsArray.find(
-          (p) => (p._id && p._id.toString() === id) || (p.id && p.id.toString() === id)
-        );
+        if (!mounted) return;
 
         if (foundProduct) {
           setProduct(foundProduct);
+          setError(null);
         } else {
+          setProduct(null);
           setError("Product not found");
         }
       } catch (err) {
         console.error("Error fetching product:", err);
-        setError("Failed to load product details");
+        if (mounted) setError("Failed to load product details");
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
-    };    fetchProducts();
+    };
+
+    fetchProducts();
+
+    const handler = (e) => {
+      // if the updated product matches current product id, refresh
+      const updated = e?.detail;
+      if (!updated) {
+        fetchProducts();
+        return;
+      }
+
+      const updatedId = updated._id || updated.id;
+      if (updatedId && (updatedId.toString() === id)) {
+        fetchProducts();
+      }
+    };
+
+    window.addEventListener("products-updated", handler);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("products-updated", handler);
+    };
   }, [id]);
+
+  // record view for authenticated users when product is loaded
+  useEffect(() => {
+    let mounted = true;
+    const recordView = async () => {
+      try {
+        if (!product) return;
+        const token = localStorage.getItem("token");
+        if (!token) {
+          // guest user: persist viewed product ids in localStorage for personalization
+          try {
+            const key = 'guestViewedProducts';
+            const existing = JSON.parse(localStorage.getItem(key) || '[]');
+            const id = (product._id || product.id || '').toString();
+            const dedup = [id, ...existing.filter((x) => x !== id)].slice(0, 12);
+            localStorage.setItem(key, JSON.stringify(dedup));
+          } catch (e) {
+            // ignore localStorage errors
+          }
+          return;
+        }
+
+        // logged-in users: call backend to add to user's viewedProducts
+        await api.post(`/user/view/${product._id || product.id}`);
+        notifyProfileSaved('View saved to profile');
+      } catch (err) {
+        // non-fatal: log and ignore
+        console.debug("Failed to record product view:", err?.message || err);
+      }
+    };
+
+    if (mounted) recordView();
+
+    return () => {
+      mounted = false;
+    };
+  }, [product]);
+
+  // Fetch content-based similar products using Python TF-IDF
+  useEffect(() => {
+    let mounted = true;
+    
+    const fetchSimilarProducts = async () => {
+      if (!product) return;
+      
+      try {
+        setLoadingSimilar(true);
+        const productId = product._id || product.id;
+        const response = await api.get(`/products/similar/${productId}?limit=8`);
+        
+        if (mounted && response.success && response.products) {
+          // Client-side safety net: only keep products with >= 10% similarity
+          const qualified = response.products.filter(
+            (p) => (p.similarityScore || 0) >= 0.10
+          );
+          setSimilarProducts(qualified);
+        }
+      } catch (err) {
+        console.debug("Failed to fetch similar products:", err);
+        // Fallback: fetch all products and filter by same category client-side
+        try {
+          const fallbackRes = await api.get("/products");
+          const all = fallbackRes.products || [];
+          const productId = product._id || product.id;
+          const filtered = all.filter(
+            (p) => (p._id || p.id) !== productId && p.category === product.category
+          );
+          if (mounted) setSimilarProducts(filtered.slice(0, 4));
+        } catch {
+          // silently ignore — similar products are non-critical
+        }
+      } finally {
+        if (mounted) setLoadingSimilar(false);
+      }
+    };
+
+    fetchSimilarProducts();
+
+    return () => {
+      mounted = false;
+    };
+  }, [product]);
 
   if (loading) {
     return (
@@ -97,14 +204,38 @@ const ProductDetails = () => {
 
           {/* Add to Cart */}
           <button 
-            disabled={product.stock === 0}
+            disabled={product.stock === 0 || isAdding}
+            onClick={async () => {
+              if (product.stock === 0 || isAdding) return;
+              try {
+                setIsAdding(true);
+                const token = localStorage.getItem('token');
+                if (!token) return window.location.href = '/login';
+                await api.post(`/user/cart/${product._id || product.id}`);
+                notifyProfileSaved('Added to cart');
+                // update global cart badge
+                window.dispatchEvent(new CustomEvent('cart-updated', { detail: { delta: 1 } }));
+              } catch (err) {
+                console.debug('Failed to add to cart:', err);
+                alert('Failed to add to cart');
+              } finally {
+                setIsAdding(false);
+              }
+            }}
             className={`px-6 py-3 rounded-lg w-full md:w-auto transition ${
               product.stock > 0 
-                ? "bg-blue-600 text-white hover:bg-blue-700" 
-                : "bg-gray-400 text-white cursor-not-allowed"
+                ? isAdding ? 'bg-blue-400 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700' 
+                : 'bg-gray-400 text-white cursor-not-allowed'
             }`}
           >
-            {product.stock > 0 ? "Add to Cart" : "Out of Stock"}
+            {isAdding ? (
+              <span className="inline-flex items-center gap-2">
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Adding…
+              </span>
+            ) : (
+              product.stock > 0 ? "Add to Cart" : "Out of Stock"
+            )}
           </button>
         </div>
       </div>
@@ -136,29 +267,47 @@ const ProductDetails = () => {
         </div>
       )}
 
-      {/* RELATED PRODUCTS */}
-      {allProducts.length > 1 && (
+      {/* SIMILAR PRODUCTS - Content-Based Recommendations */}
+      {loadingSimilar && (
+        <div className="mt-14 text-center py-8">
+          <Loader className="inline-block animate-spin text-blue-500" size={32} />
+          <p className="text-gray-600 mt-2">Finding similar products...</p>
+        </div>
+      )}
+
+      {!loadingSimilar && similarProducts.length > 0 && (
         <div className="mt-14">
-          <h2 className="text-2xl font-bold mb-6">You May Also Like</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold">Similar Products</h2>
+            <span className="text-sm text-gray-500">Based on content similarity</span>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {allProducts
-              .filter((p) => (p._id || p.id) !== (product._id || product.id))
-              .slice(0, 4)
-              .map((related) => (
+              {similarProducts.map((related) => (
                 <a
                   href={`/product/${related._id || related.id}`}
                   key={related._id || related.id}
-                  className="border rounded-lg shadow hover:shadow-lg transition p-3"
+                  className="border rounded-lg shadow hover:shadow-lg transition p-3 group"
                 >
-                  <img
-                    src={related.image || related.img || "https://via.placeholder.com/300"}
-                    className="w-full h-40 object-cover rounded"
-                  />
-                  <h3 className="font-semibold mt-3">{related.title || related.name}</h3>
-                  <p className="text-red-600 font-bold">$ {related.price}</p>
+                  <div className="relative">
+                    <img
+                      src={related.image || related.img || "https://via.placeholder.com/300"}
+                      className="w-full h-40 object-cover rounded"
+                      alt={related.title || related.name}
+                    />
+                    {related.similarityScore > 0 && (
+                      <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
+                        {Math.round(related.similarityScore * 100)}% match
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="font-semibold mt-3 group-hover:text-blue-600 transition line-clamp-2">
+                    {related.title || related.name}
+                  </h3>
+                  <p className="text-sm text-gray-500">{related.category}</p>
+                  <p className="text-red-600 font-bold mt-1">Rs {related.price}</p>
                 </a>
               ))}
-          </div>
+            </div>
         </div>
       )}
     </div>
